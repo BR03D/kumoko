@@ -2,7 +2,7 @@ use std::{collections::HashMap, io::ErrorKind};
 
 use tokio::{net::tcp::OwnedWriteHalf, sync::mpsc};
 
-use crate::{my_error::MyError, server::{IResponse, Target}, TraitResponse};
+use crate::{my_error::MyError, server::{IResponse, Target}, Message};
 
 
 #[derive(Debug)]
@@ -11,7 +11,7 @@ pub struct Responder<Res> {
     rx: mpsc::Receiver<ResponderMessage<Res>>,
 }
 
-impl<Res: TraitResponse> Responder<Res> {
+impl<Res: Message> Responder<Res> {
     pub fn spawn_on_task() -> mpsc::Sender<ResponderMessage<Res>>{
         let (sx, rx) = mpsc::channel(32);
 
@@ -75,7 +75,7 @@ pub struct ClientResponder<Res>{
     rx: mpsc::Receiver<Res>,
 }
 
-impl<Res: TraitResponse> ClientResponder<Res> {
+impl<Res: Message> ClientResponder<Res> {
     fn spawn_on_task(stream: OwnedWriteHalf) -> mpsc::Sender<Res> {
         let (sx, rx) = mpsc::channel(32);
         let client = ClientResponder{ stream, rx };

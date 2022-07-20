@@ -2,7 +2,7 @@ use std::io::ErrorKind;
 
 use tokio::{net::tcp::OwnedReadHalf, sync::mpsc};
 
-use crate::{server::IRequest, TraitRequest, my_error::MyError};
+use crate::{server::IRequest, Message, my_error::MyError};
 
 #[derive(Debug)]
 pub struct ClientRequester<Req> {
@@ -11,7 +11,7 @@ pub struct ClientRequester<Req> {
     id: usize,
 }
 
-impl<Req: TraitRequest> ClientRequester<Req> {
+impl<Req: Message> ClientRequester<Req> {
     pub fn spawn_on_task(
         stream: OwnedReadHalf,
         requester: mpsc::Sender<IRequest<Req>>,

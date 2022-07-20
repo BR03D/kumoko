@@ -1,14 +1,14 @@
-use tokio::{net::TcpListener, sync::mpsc};
+use tokio::{net::{TcpListener, ToSocketAddrs}, sync::mpsc};
 
-use crate::{responder::{Responder, ResponderMessage}, my_error::MyError, client_requester::ClientRequester, TraitRequest, TraitResponse};
+use crate::{responder::{Responder, ResponderMessage}, my_error::MyError, client_requester::ClientRequester, Message};
 
 pub struct Server<Req, Res>{
     responder: mpsc::Sender<ResponderMessage<Res>>,
     requester: mpsc::Receiver<IRequest<Req>>,
 }
 
-impl<Req: TraitRequest, Res: TraitResponse> Server<Req, Res> {
-    pub async fn bind(ip: &str) -> Server<Req, Res> {
+impl<Req: Message, Res: Message> Server<Req, Res> {
+    pub async fn bind<A: ToSocketAddrs>(ip: A) -> Server<Req, Res> {
         let listener = TcpListener::bind(ip).await.unwrap();
         let (requester_sender, requester) = mpsc::channel(32);
         let responder = Responder::spawn_on_task();
