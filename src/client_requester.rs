@@ -2,19 +2,19 @@ use std::io::ErrorKind;
 
 use tokio::{net::tcp::OwnedReadHalf, sync::mpsc};
 
-use crate::{MyError, events::Request, server::IRequest};
+use crate::{server::IRequest, TraitRequest, my_error::MyError};
 
 #[derive(Debug)]
-pub struct ClientRequester {
+pub struct ClientRequester<Req> {
     stream: OwnedReadHalf,
-    requester: mpsc::Sender<IRequest>,
+    requester: mpsc::Sender<IRequest<Req>>,
     id: usize,
 }
 
-impl ClientRequester {
+impl<Req: TraitRequest> ClientRequester<Req> {
     pub fn spawn_on_task(
         stream: OwnedReadHalf,
-        requester: mpsc::Sender<IRequest>,
+        requester: mpsc::Sender<IRequest<Req>>,
         id: usize
     ){
         let client = ClientRequester {stream, requester, id};
@@ -55,14 +55,14 @@ impl ClientRequester {
 
         Ok(())
     }
-    async fn handle_request (&self, msg: Request) -> Result<(), MyError> {
+    async fn handle_request (&self, msg: Req) -> Result<(), MyError> {
 
         self.requester.send(IRequest { msg, target: self.id }).await.unwrap();
 
         Ok(())
     }
 
-    async fn recieve_data(&self) -> Result<MultiRequest, MyError> {
+    async fn recieve_data(&self) -> Result<MultiRequest<Req>, MyError> {
         self.stream.readable().await.unwrap();
 
         let mut buf = [0; 256];
@@ -71,14 +71,14 @@ impl ClientRequester {
     }
 
     #[async_recursion::async_recursion]
-    async fn recieve_more_data(&self, data: &[u8]) -> Result<MultiRequest, MyError> {
+    async fn recieve_more_data(&self, data: &[u8]) -> Result<MultiRequest<Req>, MyError> {
         let mut buf = [0; 1024];
         let bytes_read = self.stream.try_read(&mut buf)?;
 
         self.deserialize(&[data, &buf[..bytes_read]].concat()).await
     }
 
-    async fn deserialize(&self, data: &[u8]) -> Result<MultiRequest, MyError> {
+    async fn deserialize(&self, data: &[u8]) -> Result<MultiRequest<Req>, MyError> {
         let mut slice = &data[..];
         let res = bincode::deserialize_from(&mut slice);
 
@@ -96,7 +96,7 @@ impl ClientRequester {
     }
 
     #[async_recursion::async_recursion]
-    async fn deserialize_more(&self, data: &[u8], mut before: Vec<Request>) -> Result<MultiRequest, MyError> {
+    async fn deserialize_more(&self, data: &[u8], mut before: Vec<Req>) -> Result<MultiRequest<Req>, MyError> {
         let mut slice = &data[..];
         let res = bincode::deserialize_from(&mut slice);
 
@@ -111,7 +111,7 @@ impl ClientRequester {
     }
 }
 
-fn is_unexpected_eof (res: &Result<Request, Box<bincode::ErrorKind>>) -> bool {
+fn is_unexpected_eof<Req> (res: &Result<Req, Box<bincode::ErrorKind>>) -> bool {
     if let Err(e) = res {
         if let bincode::ErrorKind::Io(err) = e.as_ref() {
             if let std::io::ErrorKind::UnexpectedEof = err.kind() {
@@ -123,7 +123,7 @@ fn is_unexpected_eof (res: &Result<Request, Box<bincode::ErrorKind>>) -> bool {
 }
 
 #[derive(Debug)]
-enum MultiRequest{
-    Single(Request),
-    Multi(Vec<Request>),
+enum MultiRequest<Req>{
+    Single(Req),
+    Multi(Vec<Req>),
 }

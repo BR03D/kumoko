@@ -2,17 +2,17 @@ use std::{collections::HashMap, io::ErrorKind};
 
 use tokio::{net::tcp::OwnedWriteHalf, sync::mpsc};
 
-use crate::{events::Response, MyError, server::{IResponse, Target}};
+use crate::{my_error::MyError, server::{IResponse, Target}, TraitResponse};
 
 
 #[derive(Debug)]
-pub struct Responder {
-    map: HashMap<usize, mpsc::Sender<Response>>,
-    rx: mpsc::Receiver<ResponderMessage>,
+pub struct Responder<Res> {
+    map: HashMap<usize, mpsc::Sender<Res>>,
+    rx: mpsc::Receiver<ResponderMessage<Res>>,
 }
 
-impl Responder {
-    pub fn spawn_on_task() -> mpsc::Sender<ResponderMessage>{
+impl<Res: TraitResponse> Responder<Res> {
+    pub fn spawn_on_task() -> mpsc::Sender<ResponderMessage<Res>>{
         let (sx, rx) = mpsc::channel(32);
 
         let r = Responder { map: HashMap::new(),  rx };
@@ -33,7 +33,7 @@ impl Responder {
         }
     }
 
-    async fn handle_msg(&mut self, msg: ResponderMessage) {
+    async fn handle_msg(&mut self, msg: ResponderMessage<Res>) {
         match msg {
             ResponderMessage::AddConnection(stream, idx) => {
                 let client = ClientResponder::spawn_on_task(stream);
@@ -45,7 +45,7 @@ impl Responder {
         };
     }
 
-    async fn send(&mut self, res: IResponse) {
+    async fn send(&mut self, res: IResponse<Res>) {
         let msg = res.msg;
         match res.target {
             Target::All => {
@@ -70,13 +70,13 @@ impl Responder {
 
 }
 
-pub struct ClientResponder{
+pub struct ClientResponder<Res>{
     stream: OwnedWriteHalf,
-    rx: mpsc::Receiver<Response>,
+    rx: mpsc::Receiver<Res>,
 }
 
-impl ClientResponder {
-    fn spawn_on_task(stream: OwnedWriteHalf) -> mpsc::Sender<Response> {
+impl<Res: TraitResponse> ClientResponder<Res> {
+    fn spawn_on_task(stream: OwnedWriteHalf) -> mpsc::Sender<Res> {
         let (sx, rx) = mpsc::channel(32);
         let client = ClientResponder{ stream, rx };
 
@@ -107,7 +107,7 @@ impl ClientResponder {
         }
     }
 
-    async fn respond(&self, res: Response) -> Result<(), MyError> {
+    async fn respond(&self, res: Res) -> Result<(), MyError> {
         self.stream.writable().await?;
         self.stream.try_write(&bincode::serialize(&res)?)?;
     
@@ -116,7 +116,7 @@ impl ClientResponder {
 }
 
 #[derive(Debug)]
-pub enum ResponderMessage {
+pub enum ResponderMessage<Res> {
     AddConnection(OwnedWriteHalf, usize),
-    SendResponse(IResponse),
+    SendResponse(IResponse<Res>),
 }

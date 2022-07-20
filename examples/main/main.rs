@@ -1,21 +1,15 @@
 use std::error::Error;
 
-mod responder;
-mod server;
-mod events;
 mod database;
-mod client_requester;
-mod my_error;
-use events::Request;
-pub use my_error::MyError;
+mod events;
+use events::{Request, Response};
 
-use crate::events::Response;
+use project_g;
 
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
-
-    let mut server = server::Server::bind("0.0.0.0:1337").await;
+    let mut server = project_g::Server::bind("0.0.0.0:1337").await;
 
     loop{
         let req = server.get_request().await;
@@ -24,7 +18,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
             Request::MapRequest => {
                 let map = database::get_map().await.unwrap();
                 let msg = Response::SendMap(map);
-                server.send_single(msg, req.target.into()).await;
+                server.send_single(msg, req.target);
             },
             Request::SaveMap(m) => {
                 database::save_map(m).await.unwrap();

@@ -6,7 +6,7 @@ use crate::responder::ResponderMessage;
 pub enum MyError{
     Io(std::io::Error),
     Serde(bincode::ErrorKind),
-    Mpsc(SendError<ResponderMessage>),
+    SendError,
 }
 
 impl From<Box<bincode::ErrorKind>> for MyError {
@@ -27,9 +27,9 @@ impl From<std::io::Error> for MyError {
     }
 }
 
-impl From<SendError<ResponderMessage>> for MyError {
-    fn from(err: SendError<ResponderMessage>) -> Self {
-        Self::Mpsc(err)
+impl<R> From<SendError<ResponderMessage<R>>> for MyError {
+    fn from(_err: SendError<ResponderMessage<R>>) -> Self {
+        Self::SendError
     }
 }
 

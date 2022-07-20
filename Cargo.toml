@@ -1,7 +1,21 @@
 [package]
 name = "project_g"
-version = "0.2.0"
+version = "0.3.0"
+authors = ["Mee"]
 edition = "2021"
+description = "simple async server for communication between rust programs"
+homepage = "forgor"
+license = "forgor"
+keywords = ["netcode", "async", "server"]
+categories = ["forgor"]
+exclude = ["/assets"]
+publish = false
+
+[lib]
+
+[[example]]
+name = "main"
+
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
