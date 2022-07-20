@@ -1,35 +1,35 @@
 use std::error::Error;
-use events::Response;
-use responder::{Responder, ResponderMessage};
-use tokio::{net::TcpListener, sync::oneshot};
 
 mod responder;
-
+mod server;
 mod events;
-
 mod database;
-
-mod client;
-use client::Client;
-
+mod client_requester;
 mod my_error;
+use events::Request;
 pub use my_error::MyError;
+
+use crate::events::Response;
 
 
 #[tokio::main]
-async fn main() -> Result<(), Box<dyn Error>> {    
-    let listener = TcpListener::bind("0.0.0.0:1337").await?;
-    let responder = Responder::new();
+async fn main() -> Result<(), Box<dyn Error>> {
+
+    let mut server = server::Server::bind("0.0.0.0:1337").await;
 
     loop{
-        let (stream, _) = listener.accept().await?;
-        let (read, write) = stream.into_split();
-        let (sx, rx) = oneshot::channel();
-
-        responder.send(ResponderMessage::AddConnection(write, sx)).await.unwrap();
-
-        let index = rx.await.unwrap();
-        
-        Client::recieve_loop(read, responder.clone(), index);
+        let req = server.get_request().await;
+        println!("{:?}", req);
+        match req.msg {
+            Request::MapRequest => {
+                let map = database::get_map().await.unwrap();
+                let msg = Response::SendMap(map);
+                server.send_single(msg, req.target.into()).await;
+            },
+            Request::SaveMap(m) => {
+                database::save_map(m).await.unwrap();
+            },
+        }
+        tokio::task::yield_now().await;
     };
 }

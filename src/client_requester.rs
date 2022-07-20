@@ -1,39 +1,43 @@
 use std::io::ErrorKind;
 
-use tokio::{net::tcp::OwnedReadHalf, sync::mpsc::Sender};
+use tokio::{net::tcp::OwnedReadHalf, sync::mpsc};
 
-use crate::{MyError, events::{Request, Response}, database, responder::ResponderMessage};
+use crate::{MyError, events::Request, server::IRequest};
 
 #[derive(Debug)]
-pub struct Client {
+pub struct ClientRequester {
     stream: OwnedReadHalf,
-    responder: Sender<ResponderMessage>,
-    index: usize,
+    requester: mpsc::Sender<IRequest>,
+    id: usize,
 }
 
-impl Client {
-
-    pub fn recieve_loop(stream: OwnedReadHalf, responder: Sender<ResponderMessage>, index: usize) {
-        println!("Creating new client! We are number {}", index);
-        let client = Client {stream, responder, index};
+impl ClientRequester {
+    pub fn spawn_on_task(
+        stream: OwnedReadHalf,
+        requester: mpsc::Sender<IRequest>,
+        id: usize
+    ){
+        let client = ClientRequester {stream, requester, id};
 
         tokio::spawn(async move{
-            loop{
-                tokio::task::yield_now().await;
-                let res = client.recieve().await;
-
-                if let Err(MyError::Io(e)) = &res {
-                    if e.kind() == ErrorKind::ConnectionReset {break;}
-                };
-
-                if let Err(MyError::Io(e)) = &res {
-                    if e.kind() == ErrorKind::WouldBlock {continue;}
-                }
-
-                res.unwrap();
-            }
-            
+            client.recieve_loop().await;
         });
+    }
+
+    async fn recieve_loop(self) {
+        println!("Creating new client! We are number {}", self.id);
+        loop{
+            tokio::task::yield_now().await;
+            let err = self.recieve().await;
+
+            if let Err(MyError::Io(e)) = &err {
+                match e.kind() {
+                    ErrorKind::ConnectionReset => return,
+                    ErrorKind::WouldBlock => continue,
+                    _ => err.unwrap(),
+                }
+            };
+        }
     }
 
     async fn recieve(&self) -> Result<(), MyError> {
@@ -51,18 +55,10 @@ impl Client {
 
         Ok(())
     }
-    async fn handle_request (&self, req: Request) -> Result<(), MyError> {
-        println!("{:?}", req);
-        match req {
-            Request::MapRequest => {
-                let map = database::get_map().await.unwrap();
-                let resp = Response::SendMap(map);
-                self.responder.send(ResponderMessage::SendResponse(resp, self.index)).await.unwrap();
-            },
-            Request::SaveMap(m) => {
-                database::save_map(m).await.unwrap();
-            },
-        };
+    async fn handle_request (&self, msg: Request) -> Result<(), MyError> {
+
+        self.requester.send(IRequest { msg, target: self.id }).await.unwrap();
+
         Ok(())
     }
 
