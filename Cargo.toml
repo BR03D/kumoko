@@ -16,6 +16,9 @@ publish = false
 [[example]]
 name = "main"
 
+[[example]]
+name="minimal"
+
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 

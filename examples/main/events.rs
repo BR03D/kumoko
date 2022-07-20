@@ -1,12 +1,12 @@
-use serde::{Serialize, Deserialize};
+use project_g::{Deserialize, Serialize};
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub enum Request{
     SaveMap(Map), 
     MapRequest,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub enum Response {
     SendMap(Map),
     Okie,
