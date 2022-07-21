@@ -3,12 +3,13 @@ name = "project_g"
 version = "0.3.0"
 authors = ["Mee"]
 edition = "2021"
-description = "simple async server for communication between rust programs"
+description = "simple async server/client for communication between rust programs"
 homepage = "forgor"
+repository = "forgor"
 license = "forgor"
 keywords = ["netcode", "async", "server"]
 categories = ["forgor"]
-exclude = ["/assets"]
+exclude = ["/src", "/examples", "README.md"]
 publish = false
 
 [lib]

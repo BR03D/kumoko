@@ -30,16 +30,12 @@ impl<Msg: Message> Receiver<Msg>{
                         _ => panic!("{}", e),
                     }
                 };
-                
                 tokio::task::yield_now().await;
             }
         });
     }
 
-    
-
     async fn recieve(&self) -> io::Result<()> {
-
         let multi = self.recieve_data().await?;
 
         match multi {
@@ -53,6 +49,7 @@ impl<Msg: Message> Receiver<Msg>{
 
         Ok(())
     }
+
     async fn handle_request (&self, msg: Msg) -> io::Result<()> {
 
         self.sx.send((msg, self.id)).await.unwrap();
@@ -65,6 +62,7 @@ impl<Msg: Message> Receiver<Msg>{
 
         let mut buf = [0; 256];
         let bytes_read = self.stream.try_read(&mut buf)?;
+        if bytes_read == 0 {return Err(ErrorKind::ConnectionReset.into())};
         self.deserialize(&buf [..bytes_read]).await
     }
 

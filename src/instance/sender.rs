@@ -14,13 +14,16 @@ impl<Msg: Message> Sender<Msg> {
         stream: OwnedWriteHalf, 
         rx: mpsc::Receiver<Msg>,
     ) {
-        Sender{stream, rx}.respond_loop();
+        Sender{stream, rx}.send_loop();
     }
 
-    fn respond_loop(mut self) {
+    fn send_loop(mut self) {
         tokio::spawn(async move{
             loop{
-                let msg = self.rx.recv().await.unwrap();
+                let msg = match self.rx.recv().await{
+                    Some(msg) => msg,
+                    None => return,
+                };
 
                 if let Err(e) = self.respond(msg).await{
                     match e.kind() {
