@@ -9,16 +9,16 @@ use project_g;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
-    let mut server = project_g::Server::bind("0.0.0.0:1337").await;
+    let (mut rec,sender) = project_g::server::bind("0.0.0.0:1337")?;
 
     loop{
-        let req = server.get_request().await;
-        println!("{:?}", req);
-        match req.msg {
+        let (req, target) = rec.get_request().await;
+        println!("got {:?} from {:?}", req, target);
+        match req {
             Request::MapRequest => {
                 let map = database::get_map().await.unwrap();
                 let msg = Response::SendMap(map);
-                server.send_single(msg, req.target);
+                sender.send_single(msg, target.into());
             },
             Request::SaveMap(m) => {
                 database::save_map(m).await.unwrap();
