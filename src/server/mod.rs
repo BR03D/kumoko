@@ -1,5 +1,6 @@
-use tokio::{net::{TcpListener, ToSocketAddrs}, sync::mpsc};
 use std::io;
+
+use tokio::{net::{TcpListener, ToSocketAddrs}, sync::mpsc::{self, error::SendError}};
 use crate::{Message, Origin, instance};
 
 mod pool;
@@ -7,7 +8,7 @@ use pool::{PoolMessage, SenderPool};
 
 ///Initializes the accept loop, returning a Reciever and Sender.
 /// 
-/// Both live on the main task, the Sender is Clone.
+/// They live on the main task, the Sender is Clone.
 pub fn bind<I, Req: Message, Res: Message>(
     ip: I
 ) -> io::Result<(Receiver<Req>, Sender<Res>)> 
@@ -24,19 +25,15 @@ pub fn bind<I, Req: Message, Res: Message>(
 /// Lives on the main task
 /// 
 /// server::bind() will create one for you.
-/// 
-/// Target will always be One(u) here, as a request always has 1 origin.
 #[derive(Debug)]
 pub struct Receiver<Req>{
     rx: mpsc::Receiver<(Req, Origin)>
 }
 
 impl<Req: Message> Receiver<Req> {
+    /// Gets the next request if one is available, otherwise it waits until it is.
     pub async fn get_request(&mut self) -> (Req, Origin) {
-        match self.rx.recv().await {
-            Some(req) => req,
-            None => panic!("WE CRASHED"),
-        }
+        self.rx.recv().await.unwrap()
     }
 }
 
@@ -50,17 +47,17 @@ pub struct Sender<Res>{
 
 impl<Res: Message> Sender<Res>{
     #[allow(unused)]
-    pub fn send_single(&self, res: Res, target: Target) {
-        self.send_response((res, target));
+    pub async fn send_single(&self, res: Res, target: Target) -> Result<(), SendError<PoolMessage<Res>>> {
+        self.send_response((res, target)).await
     }
 
     #[allow(unused)]
-    pub fn broadcast(&self, res: Res) {
-        self.send_response((res, Target::All));
+    pub async fn broadcast(&self, res: Res) -> Result<(), SendError<PoolMessage<Res>>> {
+        self.send_response((res, Target::All)).await
     }
 
-    pub fn send_response(&self, msg: (Res, Target)) {
-        self.pool.try_send(PoolMessage::Msg(msg)).unwrap();
+    pub async fn send_response(&self, msg: (Res, Target)) -> Result<(), SendError<PoolMessage<Res>>> {
+        self.pool.send(PoolMessage::Msg(msg)).await
     }
 }
 

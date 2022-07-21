@@ -29,10 +29,10 @@ pub struct Receiver<Res>{
 }
 
 impl<Res: Message> Receiver<Res> {
-    pub async fn get_response(&mut self) -> Res {
+    pub async fn get_response(&mut self) -> Option<Res> {
         match self.rx.recv().await {
-            Some((msg, _)) => msg,
-            None => panic!("WE CRASHED"),
+            Some((msg, _)) => Some(msg),
+            None => None,
         }
     }
 }

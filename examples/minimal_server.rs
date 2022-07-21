@@ -8,7 +8,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         let (req, target): (String, _) = rec.get_request().await;
 
         let msg = format!("Hello {}! Happy to see you here!", req);
-        send.send_single(msg, target.into());
-
+        send.send_single(msg, target.into()).await?;
     }
 }

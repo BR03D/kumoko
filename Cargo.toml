@@ -13,7 +13,6 @@ publish = false
 
 [lib]
 
-
 [[example]]
 name = "server"
 

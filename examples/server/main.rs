@@ -4,26 +4,34 @@ mod database;
 mod events;
 use events::{Request, Response};
 
-use project_g;
+use project_g::{server, Origin};
 
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
-    let (mut rec,sender) = project_g::server::bind("0.0.0.0:1337")?;
+    let (mut rec,send) = server::bind("0.0.0.0:1337")?;
 
     loop{
-        let (req, target) = rec.get_request().await;
-        println!("got {:?} from {:?}", req, target);
+        let (req, origin) = rec.get_request().await;
+        println!("got {:?} from {:?}", req, origin);
         match req {
             Request::MapRequest => {
-                let map = database::get_map().await.unwrap();
-                let msg = Response::SendMap(map);
-                sender.send_single(msg, target.into());
+                handle_map_req(send.clone(), origin);
             },
             Request::SaveMap(m) => {
-                database::save_map(m).await.unwrap();
+                tokio::spawn(async move{
+                    database::save_map(m).await.unwrap();
+                });
             },
         }
         tokio::task::yield_now().await;
     };
+}
+
+fn handle_map_req(send: server::Sender<Response>, from: Origin) {
+    tokio::spawn(async move{
+        let map = database::get_map().await.unwrap();
+        let msg = Response::SendMap(map);
+        send.send_single(msg, from.into()).await.unwrap();
+    });
 }
