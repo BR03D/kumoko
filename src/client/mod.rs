@@ -6,8 +6,7 @@ use crate::{Message, Origin, instance};
 
 pub async fn connect<A: ToSocketAddrs, Req: Message, Res: Message>(
     ip: A
-) -> io::Result<(Receiver<Req>, Sender<Res>)> {
-
+) -> io::Result<Client<Req, Res>> {
     let stream = TcpStream::connect(ip).await?;
     let (read, write) = stream.into_split();
 
@@ -19,9 +18,28 @@ pub async fn connect<A: ToSocketAddrs, Req: Message, Res: Message>(
     instance::Sender::spawn_on_task(write, rx);
     let sender = Sender{sx};
     
-    Ok((receiver, sender))
+    Ok(Client{receiver, sender})
 }
 
+#[derive(Debug)]
+pub struct Client<Req, Res>{
+    receiver: Receiver<Res>,
+    sender: Sender<Req>,
+}
+
+impl<Req: Message, Res: Message> Client<Req, Res>{
+    pub async fn get_response(&mut self) -> Option<Res> {
+        self.receiver.get_response().await
+    }
+
+    pub async fn send_request(&self, req: Req) {
+        self.sender.send_request(req).await
+    }
+
+    pub fn into_split(self) -> (Receiver<Res>, Sender<Req>) {
+        (self.receiver, self.sender)
+    }
+}
 
 #[derive(Debug)]
 pub struct Receiver<Res>{

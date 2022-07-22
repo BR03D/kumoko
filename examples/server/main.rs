@@ -9,7 +9,7 @@ use project_g::{server, Origin};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
-    let (mut rec,send) = server::bind("0.0.0.0:1337")?;
+    let (mut rec,send) = server::bind("0.0.0.0:1337")?.into_split();
 
     loop{
         let (req, origin) = rec.get_request().await;

@@ -1,7 +1,7 @@
 # Project_G
 
-A simple, rust only asynchronous server/client crate built 
-on tokio for easy full duplex streaming between rust programs.
+A simple asynchronous server/client crate built 
+on tokio for easy two-way streaming.
 
 [Website](https://www.youtube.com/watch?v=dQw4w9WgXcQ) |
 [API Docs](https://www.youtube.com/watch?v=dQw4w9WgXcQ)
@@ -12,19 +12,28 @@ on tokio for easy full duplex streaming between rust programs.
 * .unwrap() is everywhere
 
 ## Motivation
-Enable full duplex streaming of semi-complex data-structures between a rust client and server. gRPC implementations are suboptimal for this:
+Enable full duplex streaming of semi-complex data-structures between a rust server and clients. gRPC implementations are suboptimal for this:
 
 * Unnecessary complexity
 * Annoying Protocol buffers
 * Restricted Data e.g. no enums
 
-## Restrictions
-All data structures must implement `Message`:
+## Features
+* Many Clients can communicate with the Server asynchronously
+* Every Client has a full duplex connection
+* Any data structure that implements `Message` can be transmitted:
 ```rust
 trait Message: Send + Clone + Serialize + DeserializeOwned + 'static
 ```
 
 ## Examples
+
+In your Cargo.toml: 
+```toml
+[dependencies]
+tokio = { version = "1.20.0", features = ["macros", "rt-multi-thread"] }
+project_g = "0.3"
+```
 
 **Minimal Client:**
 ```rust
@@ -34,7 +43,7 @@ use project_g::client;
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let (mut rec, send) = client::connect("[::1]:50052").await?;
 
-    send.send_request("Rusty the Crab".to_string()).await;
+    send.send_request("Ferris".to_string()).await;
     let msg: String = rec.get_response().await.unwrap();
     println!("{}", msg);
 

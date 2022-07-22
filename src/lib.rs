@@ -21,3 +21,13 @@ impl<T: Into<usize>> From<T> for Origin{
         Self::Id(id.into())
     }
 }
+
+impl std::fmt::Display for Origin {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let st = match self {
+            Origin::Id(id) => format!("to: {}",id),
+            Origin::OnClient => "on client".to_string(),
+        };
+        write!(f, "{}", st)
+    }
+}

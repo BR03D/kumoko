@@ -59,7 +59,6 @@ impl<Res: Message> SenderPool<Res> {
                     self.map.remove(&id);
                 };
             },
-            Target::OnClient => panic!("what are we doing?"),
         }
     }
 }

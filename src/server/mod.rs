@@ -6,25 +6,56 @@ use crate::{Message, Origin, instance};
 mod pool;
 use pool::{PoolMessage, SenderPool};
 
-///Initializes the accept loop, returning a Reciever and Sender.
-/// 
-/// They live on the main task, the Sender is Clone.
+///Initializes the accept loop, returning a Server. It can be 
+/// split into a Reciever and Sender for async operations.
 pub fn bind<I, Req: Message, Res: Message>(
     ip: I
-) -> io::Result<(Receiver<Req>, Sender<Res>)> 
+) -> io::Result<Server<Req, Res>>
     where I: ToSocketAddrs + Send + 'static,
 {
     let (sx, rx) = mpsc::channel(32);
     let pool = SenderPool::spawn_on_task();
 
     accept_loop(ip, sx, pool.clone())?;
+    let receiver = Receiver{rx};
+    let sender = Sender{pool};
 
-    Ok((Receiver{rx}, Sender{pool}))
+    Ok(Server{receiver, sender})
+}
+
+pub struct Server<Req, Res>{
+    receiver: Receiver<Req>,
+    sender: Sender<Res>,
+}
+
+impl<Req: Message, Res: Message> Server<Req, Res>{
+    /// Gets the next request if one is available, otherwise it waits until it is.
+    pub async fn get_request(&mut self) -> (Req, Origin) {
+        self.receiver.get_request().await
+    }
+
+    #[allow(unused)]
+    pub async fn send_single(&self, res: Res, target: Target) -> Result<(), SendError<PoolMessage<Res>>> {
+        self.send_response((res, target)).await
+    }
+
+    #[allow(unused)]
+    pub async fn broadcast(&self, res: Res) -> Result<(), SendError<PoolMessage<Res>>> {
+        self.send_response((res, Target::All)).await
+    }
+
+    pub async fn send_response(&self, msg: (Res, Target)) -> Result<(), SendError<PoolMessage<Res>>> {
+        self.sender.send_response(msg).await
+    }
+    /// 
+    pub fn into_split(self) -> (Receiver<Req>, Sender<Res>) {
+        (self.receiver, self.sender)
+    }
 }
 
 /// Lives on the main task
 /// 
-/// server::bind() will create one for you.
+/// Server.into_split will create one for you.
 #[derive(Debug)]
 pub struct Receiver<Req>{
     rx: mpsc::Receiver<(Req, Origin)>
@@ -39,7 +70,8 @@ impl<Req: Message> Receiver<Req> {
 
 /// Lives on the main task
 /// 
-/// server::bind() will create one for you.
+/// Server.into_split will create one for you. Implements Clone for 
+/// your own async operations.
 #[derive(Debug, Clone)]
 pub struct Sender<Res>{
     pool: mpsc::Sender<PoolMessage<Res>>
@@ -65,20 +97,13 @@ impl<Res: Message> Sender<Res>{
 pub enum Target{
     All,
     One(usize),
-    OnClient,
-}
-
-impl<T: Into<usize>> From<T> for Target{
-    fn from(id: T) -> Self {
-        Self::One(id.into())
-    }
 }
 
 impl From<Origin> for Target{
     fn from(o: Origin) -> Self {
         match o {
             Origin::Id(i) => Self::One(i),
-            Origin::OnClient => Self::OnClient,
+            Origin::OnClient => unreachable!(),
         }
     }
 }
