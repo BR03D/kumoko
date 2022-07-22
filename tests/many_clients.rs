@@ -4,9 +4,7 @@ const IP: &str = "[::1]:50052";
 
 #[tokio::test]
 async fn many() {
-    let mut server = server::bind(IP).unwrap();
-    tokio::time::sleep(std::time::Duration::from_millis(1)).await;
-
+    let mut server = server::bind(IP).await.unwrap();
     create().await;
 
     loop{

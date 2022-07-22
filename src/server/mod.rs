@@ -1,35 +1,40 @@
 use std::io;
 
 use tokio::{net::{TcpListener, ToSocketAddrs}, sync::mpsc::{self, error::SendError}};
-use crate::{Message, Origin, instance};
+use crate::{Message, Origin, instance, Event};
 
 mod pool;
 use pool::{PoolMessage, SenderPool};
 
 ///Initializes the accept loop, returning a Server. It can be 
 /// split into a Reciever and Sender for async operations.
-pub fn bind<I, Req: Message, Res: Message>(
+pub async fn bind<I, Req: Message, Res: Message>(
     ip: I
 ) -> io::Result<Server<Req, Res>>
     where I: ToSocketAddrs + Send + 'static,
 {
     let (sx, rx) = mpsc::channel(32);
     let pool = SenderPool::spawn_on_task();
+    let listener = TcpListener::bind(ip).await?;
 
-    accept_loop(ip, sx, pool.clone())?;
+    accept_loop(listener, sx, pool.clone())?;
     let receiver = Receiver{rx};
     let sender = Sender{pool};
 
     Ok(Server{receiver, sender})
 }
 
-pub struct Server<Req, Res>{
+pub struct Server<Req: Message, Res>{
     receiver: Receiver<Req>,
     sender: Sender<Res>,
 }
 
 impl<Req: Message, Res: Message> Server<Req, Res>{
     /// Gets the next request if one is available, otherwise it waits until it is.
+    pub async fn get_event(&mut self) -> (Event<Req>, Origin) {
+        self.receiver.get_event().await
+    }
+
     pub async fn get_request(&mut self) -> (Req, Origin) {
         self.receiver.get_request().await
     }
@@ -57,14 +62,23 @@ impl<Req: Message, Res: Message> Server<Req, Res>{
 /// 
 /// Server.into_split will create one for you.
 #[derive(Debug)]
-pub struct Receiver<Req>{
-    rx: mpsc::Receiver<(Req, Origin)>
+pub struct Receiver<Req: Message>{
+    rx: mpsc::Receiver<(Event<Req>, Origin)>
 }
 
 impl<Req: Message> Receiver<Req> {
-    /// Gets the next request if one is available, otherwise it waits until it is.
-    pub async fn get_request(&mut self) -> (Req, Origin) {
+    /// Gets the next event if one is available, otherwise it waits until it is.
+    pub async fn get_event(&mut self) -> (Event<Req>, Origin) {
         self.rx.recv().await.unwrap()
+    }
+
+    pub async fn get_request(&mut self) -> (Req, Origin) {
+        loop{
+            match self.get_event().await {
+                (Event::Message(msg), o) => return (msg, o),
+                _ => continue,
+            }
+        }
     }
 }
 
@@ -108,17 +122,14 @@ impl From<Origin> for Target{
     }
 }
 
-fn accept_loop<I, Req: Message, Res: Message>(
-    ip: I,
-    sx:   mpsc::Sender<(Req, Origin)>, 
+fn accept_loop<Req: Message, Res: Message>(
+    listener: TcpListener,
+    sx:   mpsc::Sender<(Event<Req>, Origin)>, 
     pool: mpsc::Sender<PoolMessage<Res>>,
-) -> io::Result<()> 
-    where I: ToSocketAddrs + Send + 'static,
-{
+) -> io::Result<()> {
     let mut id = 0;
     
     tokio::spawn(async move{
-        let listener = TcpListener::bind(ip).await.unwrap();
         loop{
             let (stream, _) = listener.accept().await?;
             let (read, write) = stream.into_split();

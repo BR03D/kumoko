@@ -3,18 +3,18 @@ use std::io::{self, ErrorKind};
 
 use tokio::{net::tcp::OwnedReadHalf, sync::mpsc};
 
-use crate::{Origin, Message};
+use crate::{Origin, Message, Event};
 
-pub struct Receiver<Msg>{
+pub struct Receiver<Msg: Message>{
     stream: OwnedReadHalf,
-    sx: mpsc::Sender<(Msg, Origin)>,
+    sx: mpsc::Sender<(Event<Msg>, Origin)>,
     id: Origin
 }
 
 impl<Msg: Message> Receiver<Msg>{
     pub fn spawn_on_task(
         stream: OwnedReadHalf, 
-        sx: mpsc::Sender<(Msg, Origin)>, 
+        sx: mpsc::Sender<(Event<Msg>, Origin)>, 
         id: Origin
     ) {
         Receiver{stream, sx, id}.recieve_loop();
@@ -23,38 +23,38 @@ impl<Msg: Message> Receiver<Msg>{
     fn recieve_loop(self) {
         tokio::spawn(async move{
             loop{
-                if let Err(e) = self.recieve().await{
-                    match e.kind() {
-                        ErrorKind::ConnectionReset => return,
-                        ErrorKind::WouldBlock => continue,
-                        _ => panic!("{}", e),
-                    }
-                };
                 tokio::task::yield_now().await;
+                match self.recieve_data().await{
+                    Ok(multi) => self.handle_multi(multi).await,
+                    Err(err) => self.handle_error(err).await,
+                };
             }
         });
     }
 
-    async fn recieve(&self) -> io::Result<()> {
-        let multi = self.recieve_data().await?;
-
+    async fn handle_multi(&self, multi: MultiMessage<Msg>) {
         match multi {
-            MultiMessage::Single(req) => self.handle_request(req).await?,
-            MultiMessage::Multi(vec) => {
-                for req in vec{
-                    self.handle_request(req).await?
-                }
-            },
+            MultiMessage::Single(msg) => self.send_event(msg.into()).await,
+            MultiMessage::Multi(v) =>
+                for msg in v{
+                    self.send_event(msg.into()).await
+                },
+            MultiMessage::CleanClose => self.send_event(Event::clean()).await,
         };
-
-        Ok(())
     }
 
-    async fn handle_request (&self, msg: Msg) -> io::Result<()> {
+    async fn handle_error(&self, err: io::Error) {
+        match err.kind() {
+            ErrorKind::ConnectionReset => {
+                self.send_event(Event::dirty()).await;
+            },
+            ErrorKind::WouldBlock => (),
+            _ => panic!("{}", err),
+        }
+    }
 
-        self.sx.send((msg, self.id)).await.unwrap();
-
-        Ok(())
+    async fn send_event(&self, event: Event<Msg>) {
+        self.sx.send((event, self.id)).await.unwrap();        
     }
 
     async fn recieve_data(&self) -> io::Result<MultiMessage<Msg>> {
@@ -62,7 +62,9 @@ impl<Msg: Message> Receiver<Msg>{
 
         let mut buf = [0; 256];
         let bytes_read = self.stream.try_read(&mut buf)?;
-        if bytes_read == 0 {return Err(ErrorKind::ConnectionReset.into())};
+        if bytes_read == 0 {
+            return Ok(MultiMessage::CleanClose)
+        };
         self.deserialize(&buf [..bytes_read]).await
     }
 
@@ -126,4 +128,5 @@ fn is_unexpected_eof<Msg> (res: &Result<Msg, Box<bincode::ErrorKind>>) -> bool {
 enum MultiMessage<Msg>{
     Single(Msg),
     Multi(Vec<Msg>),
+    CleanClose,
 }

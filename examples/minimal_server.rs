@@ -2,7 +2,7 @@ use project_g::server;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let mut server = server::bind("[::1]:50052")?;
+    let mut server = server::bind("[::1]:50052").await?;
 
     loop{
         let (req, target): (String, _) = server.get_request().await;

@@ -20,19 +20,23 @@ impl<Msg: Message> Sender<Msg> {
     fn send_loop(mut self) {
         tokio::spawn(async move{
             loop{
+                tokio::task::yield_now().await;
                 let msg = match self.rx.recv().await{
                     Some(msg) => msg,
+
+                    // this happens when the mpsc::sender is dropped - we simply end the loop
                     None => return,
                 };
 
                 if let Err(e) = self.respond(msg).await{
                     match e.kind() {
-                        ErrorKind::BrokenPipe => return,
                         ErrorKind::WouldBlock => continue,
+
+                        // this should never happen?
+                        ErrorKind::BrokenPipe => panic!("In sender: {}", e),
                         _ => panic!("{}", e)
                     }
                 };
-                tokio::task::yield_now().await;
             }
         });
     }

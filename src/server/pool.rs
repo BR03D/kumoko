@@ -39,26 +39,22 @@ impl<Res: Message> SenderPool<Res> {
                 self.map.insert(id, sx);
             },
             PoolMessage::Msg(msg) => self.send(msg).await,
+            PoolMessage::Leave(id) => {self.map.remove(&id);},
         }
     }
 
     async fn send(&mut self, (res, target): (Res, Target)) {
         match target {
             Target::All => {
-                //very jank nononon
-                //will delete entries on a send failure
-                //send failure occurs only after the second failed attempt
-                self.map.retain(|_idx, client| {
-                    if let Err(_) = client.try_send(res.clone()) { false }
-                    else { true }
-                });
+                for (_, sender) in self.map.iter() {
+                    let res = res.clone();
+                    sender.send(res).await.unwrap();
+                }
             },
             Target::One(id) => 
-            if let Some(client) = self.map.get(&id) {
-                if let Err(_) = client.send(res).await{
-                    self.map.remove(&id);
-                };
-            },
+                if let Some(sender) = self.map.get(&id) {
+                    sender.send(res).await.unwrap();
+                },
         }
     }
 }
@@ -66,5 +62,6 @@ impl<Res: Message> SenderPool<Res> {
 #[derive(Debug)]
 pub enum PoolMessage<Msg>{
     Join(OwnedWriteHalf, usize),
-    Msg((Msg, Target))
+    Msg((Msg, Target)),
+    Leave(usize),
 }

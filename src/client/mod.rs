@@ -2,7 +2,7 @@ use std::io;
 
 use tokio::{net::{ToSocketAddrs, TcpStream}, sync::mpsc};
 
-use crate::{Message, Origin, instance};
+use crate::{Message, Origin, instance, Event};
 
 pub async fn connect<A: ToSocketAddrs, Req: Message, Res: Message>(
     ip: A
@@ -22,12 +22,16 @@ pub async fn connect<A: ToSocketAddrs, Req: Message, Res: Message>(
 }
 
 #[derive(Debug)]
-pub struct Client<Req, Res>{
+pub struct Client<Req, Res: Message>{
     receiver: Receiver<Res>,
     sender: Sender<Req>,
 }
 
 impl<Req: Message, Res: Message> Client<Req, Res>{
+    pub async fn get_event(&mut self) -> Option<Event<Res>> {
+        self.receiver.get_event().await
+    }
+
     pub async fn get_response(&mut self) -> Option<Res> {
         self.receiver.get_response().await
     }
@@ -42,12 +46,24 @@ impl<Req: Message, Res: Message> Client<Req, Res>{
 }
 
 #[derive(Debug)]
-pub struct Receiver<Res>{
-    rx: mpsc::Receiver<(Res, Origin)>
+pub struct Receiver<Res: Message>{
+    rx: mpsc::Receiver<(Event<Res>, Origin)>
 }
 
 impl<Res: Message> Receiver<Res> {
     pub async fn get_response(&mut self) -> Option<Res> {
+        loop{
+            match self.get_event().await{
+                Some(e) => match e {
+                    Event::Message(res) => return Some(res),
+                    _ => continue
+                },
+                None => return None,
+            }
+        }
+    }
+
+    pub async fn get_event(&mut self) -> Option<Event<Res>> {
         match self.rx.recv().await {
             Some((msg, _)) => Some(msg),
             None => None,
