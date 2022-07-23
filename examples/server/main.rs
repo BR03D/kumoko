@@ -4,12 +4,12 @@ mod database;
 mod events;
 use events::{Request, Response};
 
-use project_g::{server, Origin};
+use kumoko::{server, Origin};
 
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
-    let (mut rec,send) = server::bind("0.0.0.0:1337").await?.into_split();
+    let (mut rec,send) = server::Server::bind("0.0.0.0:1337").await?.into_split();
 
     loop{
         let (req, origin) = rec.get_request().await;

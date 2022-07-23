@@ -1,18 +1,18 @@
-use project_g::{Deserialize, Serialize};
+use kumoko::{Decode, Encode};
 
-#[derive(Debug, Clone, Deserialize, Serialize)]
+#[derive(Debug, Clone, Decode, Encode)]
 pub enum Request{
     SaveMap(Map), 
     MapRequest,
 }
 
-#[derive(Debug, Clone, Deserialize, Serialize)]
+#[derive(Debug, Clone, Decode, Encode)]
 pub enum Response {
     SendMap(Map),
     Okie,
 }
 
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Clone, Decode, Encode)]
 pub struct Map{
     pub h: Vec<Vec<u8>>,
     pub t: Vec<Vec<Terrain>>,
@@ -25,7 +25,7 @@ impl std::fmt::Debug for Map{
     }
 }
 
-#[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq)]
+#[derive(Clone, Copy, Debug, Decode, Encode, PartialEq)]
 pub enum Terrain{
     Grass,
     Sand,

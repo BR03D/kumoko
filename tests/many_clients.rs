@@ -1,10 +1,10 @@
-use project_g::{client, server};
+use kumoko::{client::Client, server::Server};
 
 const IP: &str = "[::1]:50052";
 
 #[tokio::test]
 async fn many() {
-    let mut server = server::bind(IP).await.unwrap();
+    let mut server = Server::bind(IP).await.unwrap();
     create().await;
 
     loop{
@@ -20,7 +20,7 @@ async fn many() {
 
 async fn create() {
     for _ in 0..10{
-        let mut client = client::connect(IP).await.unwrap();
+        let mut client = Client::connect(IP).await.unwrap();
 
         tokio::spawn(async move{
             let mut idx = 1;

@@ -6,35 +6,36 @@ use crate::{Message, Origin, instance, Event};
 mod pool;
 use pool::{PoolMessage, SenderPool};
 
-///Initializes the accept loop, returning a Server. It can be 
-/// split into a Reciever and Sender for async operations.
-pub async fn bind<I, Req: Message, Res: Message>(
-    ip: I
-) -> io::Result<Server<Req, Res>>
-    where I: ToSocketAddrs + Send + 'static,
-{
-    let (sx, rx) = mpsc::channel(32);
-    let pool = SenderPool::spawn_on_task();
-    let listener = TcpListener::bind(ip).await?;
-
-    accept_loop(listener, sx, pool.clone())?;
-    let receiver = Receiver{rx};
-    let sender = Sender{pool};
-
-    Ok(Server{receiver, sender})
-}
-
 pub struct Server<Req: Message, Res>{
     receiver: Receiver<Req>,
     sender: Sender<Res>,
 }
 
 impl<Req: Message, Res: Message> Server<Req, Res>{
-    /// Gets the next request if one is available, otherwise it waits until it is.
+    ///Initializes the accept loop, returning a Server. It can be 
+    /// split into a Reciever and Sender for async operations.
+    pub async fn bind<I>(
+        ip: I
+    ) -> io::Result<Server<Req, Res>>
+        where I: ToSocketAddrs + Send + 'static,
+    {
+        let (sx, rx) = mpsc::channel(32);
+        let pool = SenderPool::spawn_on_task();
+        let listener = TcpListener::bind(ip).await?;
+    
+        accept_loop(listener, sx, pool.clone())?;
+        let receiver = Receiver{rx};
+        let sender = Sender{pool};
+    
+        Ok(Server{receiver, sender})
+    }
+
+    /// Gets the next event if one is available, otherwise it waits until it is.
     pub async fn get_event(&mut self) -> (Event<Req>, Origin) {
         self.receiver.get_event().await
     }
 
+    /// Convenience method for applications only care about requests
     pub async fn get_request(&mut self) -> (Req, Origin) {
         self.receiver.get_request().await
     }
@@ -68,15 +69,18 @@ pub struct Receiver<Req: Message>{
 
 impl<Req: Message> Receiver<Req> {
     /// Gets the next event if one is available, otherwise it waits until it is.
+    /// 
+    /// We .unwrap() because the accept_loop owns a sender - it can never go out of 
+    /// scope (that is maybe a problem)
     pub async fn get_event(&mut self) -> (Event<Req>, Origin) {
         self.rx.recv().await.unwrap()
     }
 
+    /// Convenience method for applications only care about requests
     pub async fn get_request(&mut self) -> (Req, Origin) {
         loop{
-            match self.get_event().await {
-                (Event::Message(msg), o) => return (msg, o),
-                _ => continue,
+            if let (Event::Message(msg), o) = self.get_event().await{
+                return (msg, o)
             }
         }
     }
@@ -122,6 +126,8 @@ impl From<Origin> for Target{
     }
 }
 
+/// Currently no way to end the accept loop - if you repeatedly bind and close 
+/// servers this will leak memory for now
 fn accept_loop<Req: Message, Res: Message>(
     listener: TcpListener,
     sx:   mpsc::Sender<(Event<Req>, Origin)>, 

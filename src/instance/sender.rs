@@ -42,8 +42,11 @@ impl<Msg: Message> Sender<Msg> {
     }
 
     async fn respond(&self, msg: Msg) -> io::Result<()> {
+        let config = bincode::config::standard();
+        let bin = bincode::encode_to_vec(msg, config).unwrap();
+
         self.stream.writable().await?;
-        self.stream.try_write(&bincode::serialize(&msg).unwrap())?;
+        self.stream.try_write(&bin)?;
     
         Ok(())
     }

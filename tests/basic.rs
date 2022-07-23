@@ -1,11 +1,11 @@
-use project_g::{client, server};
+use kumoko::{client::Client, server::Server};
 
 const IP: &str = "[::1]:50052";
 
 #[tokio::test]
 async fn basic() {
-    let mut server = server::bind(IP).await.unwrap();
-    let mut client = client::connect(IP).await.unwrap();
+    let mut server = Server::bind(IP).await.unwrap();
+    let mut client = Client::connect(IP).await.unwrap();
 
     client.send_request(15).await;
 

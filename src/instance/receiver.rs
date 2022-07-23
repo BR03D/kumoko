@@ -1,6 +1,7 @@
 use core::panic;
 use std::io::{self, ErrorKind};
 
+use bincode::error::DecodeError;
 use tokio::{net::tcp::OwnedReadHalf, sync::mpsc};
 
 use crate::{Origin, Message, Event};
@@ -39,6 +40,7 @@ impl<Msg: Message> Receiver<Msg>{
                 for msg in v{
                     self.send_event(msg.into()).await
                 },
+            MultiMessage::Illegal(v) => self.send_event(Event::IllegalData(v)).await,
             MultiMessage::CleanClose => self.send_event(Event::clean()).await,
         };
     }
@@ -58,7 +60,7 @@ impl<Msg: Message> Receiver<Msg>{
     }
 
     async fn recieve_data(&self) -> io::Result<MultiMessage<Msg>> {
-        self.stream.readable().await.unwrap();
+        self.stream.readable().await?;
 
         let mut buf = [0; 256];
         let bytes_read = self.stream.try_read(&mut buf)?;
@@ -78,19 +80,27 @@ impl<Msg: Message> Receiver<Msg>{
 
     async fn deserialize(&self, data: &[u8]) -> io::Result<MultiMessage<Msg>> {
         let mut slice = &data[..];
-        let res = bincode::deserialize_from(&mut slice);
+        
+        let config = bincode::config::standard();
+        let res = bincode::decode_from_std_read(&mut slice, config);
 
         if is_unexpected_eof(&res) {
             return self.recieve_more_data(data).await
         };
 
-        let res = res.unwrap();
+        let msg = match res{
+            Ok(msg) => msg,
+            Err(e) => {
+                eprintln!("ErrorKind is not Clone, so im putting it here: \n{}", e);
+                return Ok(MultiMessage::Illegal(Vec::from(data)))
+            },
+        };
 
         if slice.len() == 0 { 
-            Ok(MultiMessage::Single(res)) 
+            Ok(MultiMessage::Single(msg)) 
         }
         else { 
-            let first = vec![res];
+            let first = vec![msg];
             self.deserialize_more(slice, first).await 
         }
     }
@@ -98,29 +108,31 @@ impl<Msg: Message> Receiver<Msg>{
     #[async_recursion::async_recursion]
     async fn deserialize_more(&self, data: &[u8], mut before: Vec<Msg>) -> io::Result<MultiMessage<Msg>> {
         let mut slice = &data[..];
-        let res = bincode::deserialize_from(&mut slice);
+
+        let config = bincode::config::standard();
+        let res = bincode::decode_from_std_read(&mut slice, config);
 
         if is_unexpected_eof(&res) {
             return self.recieve_more_data(data).await
+        }
+
+        let msg = match res{
+            Ok(msg) => msg,
+            Err(e) => {
+                eprintln!("ErrorKind is not Clone, so im putting it here: \n{}", e);
+                return Ok(MultiMessage::Illegal(Vec::from(data)))
+            },
         };
 
-        let res = res.unwrap();
-
-        before.push(res);
+        before.push(msg);
         
         if slice.len() == 0 { Ok(MultiMessage::Multi(before)) }
         else { self.deserialize_more(slice, before).await }
     }
 }
 
-fn is_unexpected_eof<Msg> (res: &Result<Msg, Box<bincode::ErrorKind>>) -> bool {
-    if let Err(e) = res {
-        if let bincode::ErrorKind::Io(err) = e.as_ref() {
-            if let std::io::ErrorKind::UnexpectedEof = err.kind() {
-                return true
-            }
-        }
-    };
+fn is_unexpected_eof<Msg> (res: &Result<Msg, DecodeError>) -> bool {
+    if let Err(DecodeError::UnexpectedEnd) = res {return true};
     false
 }
 
@@ -128,5 +140,6 @@ fn is_unexpected_eof<Msg> (res: &Result<Msg, Box<bincode::ErrorKind>>) -> bool {
 enum MultiMessage<Msg>{
     Single(Msg),
     Multi(Vec<Msg>),
+    Illegal(Vec<u8>),
     CleanClose,
 }

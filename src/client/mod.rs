@@ -4,23 +4,6 @@ use tokio::{net::{ToSocketAddrs, TcpStream}, sync::mpsc};
 
 use crate::{Message, Origin, instance, Event};
 
-pub async fn connect<A: ToSocketAddrs, Req: Message, Res: Message>(
-    ip: A
-) -> io::Result<Client<Req, Res>> {
-    let stream = TcpStream::connect(ip).await?;
-    let (read, write) = stream.into_split();
-
-    let (sx, rx) = mpsc::channel(32);
-    instance::Receiver::spawn_on_task(read, sx, Origin::OnClient);
-    let receiver = Receiver{rx};
-
-    let (sx, rx) = mpsc::channel(32);
-    instance::Sender::spawn_on_task(write, rx);
-    let sender = Sender{sx};
-    
-    Ok(Client{receiver, sender})
-}
-
 #[derive(Debug)]
 pub struct Client<Req, Res: Message>{
     receiver: Receiver<Res>,
@@ -28,6 +11,23 @@ pub struct Client<Req, Res: Message>{
 }
 
 impl<Req: Message, Res: Message> Client<Req, Res>{
+    pub async fn connect<A: ToSocketAddrs>(
+        ip: A
+    ) -> io::Result<Client<Req, Res>> {
+        let stream = TcpStream::connect(ip).await?;
+        let (read, write) = stream.into_split();
+    
+        let (sx, rx) = mpsc::channel(32);
+        instance::Receiver::spawn_on_task(read, sx, Origin::OnClient);
+        let receiver = Receiver{rx};
+    
+        let (sx, rx) = mpsc::channel(32);
+        instance::Sender::spawn_on_task(write, rx);
+        let sender = Sender{sx};
+        
+        Ok(Client{receiver, sender})
+    }
+
     pub async fn get_event(&mut self) -> Option<Event<Res>> {
         self.receiver.get_event().await
     }
@@ -54,10 +54,8 @@ impl<Res: Message> Receiver<Res> {
     pub async fn get_response(&mut self) -> Option<Res> {
         loop{
             match self.get_event().await{
-                Some(e) => match e {
-                    Event::Message(res) => return Some(res),
-                    _ => continue
-                },
+                Some(Event::Message(res)) => return Some(res),
+                Some(_) => continue,
                 None => return None,
             }
         }

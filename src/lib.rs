@@ -1,17 +1,16 @@
 mod instance;
 use std::fmt::Debug;
 
+pub use bincode::{Decode, Encode};
+
 #[cfg(feature = "server")]
 pub mod server;
 
 #[cfg(feature = "client")]
 pub mod client;
 
-pub use serde::{Serialize, Deserialize};
-use serde::de::DeserializeOwned;
-
-pub trait Message:              Send + 'static + Clone + Debug + Serialize + DeserializeOwned{}
-impl<T> Message for T where T:  Send + 'static + Clone + Debug + Serialize + DeserializeOwned{}
+pub trait Message:              Send + 'static + Clone + Debug + Encode + Decode{}
+impl<T> Message for T where T:  Send + 'static + Clone + Debug + Encode + Decode{}
 
 #[derive(Debug, Clone, Copy)]
 pub enum Origin{
@@ -26,7 +25,7 @@ pub enum Event<Msg: Message>{
     Close(CloseEvent)
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Eq, PartialEq)]
 pub enum CloseEvent{
     Clean,
     Dirty,
@@ -55,6 +54,7 @@ impl<T: Into<usize>> From<T> for Origin{
     }
 }
 
+/// A little jank
 impl std::fmt::Display for Origin {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let st = match self {

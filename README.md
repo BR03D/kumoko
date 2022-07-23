@@ -1,4 +1,4 @@
-# Project_G
+# Kumoko
 
 A simple asynchronous server/client crate built 
 on tokio for easy two-way streaming.
@@ -32,12 +32,12 @@ In your Cargo.toml:
 ```toml
 [dependencies]
 tokio = { version = "1.20.0", features = ["macros", "rt-multi-thread"] }
-project_g = "0.3"
+kumoko = "0.3"
 ```
 
 **Minimal Client:**
 ```rust
-use project_g::client;
+use kumoko::client;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -53,7 +53,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 **Minimal Server:**
 ```rust
-use project_g::server;
+use kumoko::server;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
