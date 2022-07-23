@@ -1,4 +1,4 @@
-use kumoko::{client::Client, server::Server, CloseEvent, Event};
+use kumoko::{client::Client, server::Server, DisconnectEvent, Event};
 
 const IP: &str = "[::1]:50052";
 
@@ -10,15 +10,18 @@ async fn events() {
     client.send_request(15).await;
 
     let (event, origin) = server.get_event().await;
+
+    //doesnt do anything
     match event{
         Event::Message(req) => {
-            server.send_single(req + 4, origin.into()).await.unwrap();
+            server.send_response(req + 4, origin.into()).await.unwrap();
         },
         Event::IllegalData(_) => unimplemented!(),
-        Event::Close(c) => {
-            assert_eq!(c, CloseEvent::Clean);
+        Event::Disconnect(c) => {
+            assert_eq!(c, DisconnectEvent::Clean);
             return
         },
+        Event::Connect => (),
     }
     let res: i32 = client.get_response().await.unwrap();
     

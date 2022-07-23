@@ -9,7 +9,7 @@ async fn many() {
 
     loop{
         let (req, origin): (i32, _) = server.get_request().await;
-        server.send_single(req + 1, origin.into()).await.unwrap();
+        server.send_response(req + 1, origin.into()).await.unwrap();
 
         println!("sending {} to {}", req, origin);
 

@@ -33,13 +33,15 @@ impl<Res: Message> SenderPool<Res> {
 
     async fn handle_msg(&mut self, msg: PoolMessage<Res>) {
         match msg {
-            PoolMessage::Join(stream, id) => {
+            PoolMessage::Connect(stream, id) => {
                 let (sx, rx) = mpsc::channel(32);
                 instance::Sender::spawn_on_task(stream, rx);
                 self.map.insert(id, sx);
             },
             PoolMessage::Msg(msg) => self.send(msg).await,
-            PoolMessage::Leave(id) => {self.map.remove(&id);},
+            
+            // this never happens i think
+            PoolMessage::Disconnect(id) => {self.map.remove(&id);},
         }
     }
 
@@ -61,7 +63,7 @@ impl<Res: Message> SenderPool<Res> {
 
 #[derive(Debug)]
 pub enum PoolMessage<Msg>{
-    Join(OwnedWriteHalf, usize),
+    Connect(OwnedWriteHalf, usize),
     Msg((Msg, Target)),
-    Leave(usize),
+    Disconnect(usize),
 }

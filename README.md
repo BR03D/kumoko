@@ -12,7 +12,7 @@ on tokio for easy two-way streaming.
 * .unwrap() is everywhere
 
 ## Motivation
-Enable full duplex streaming of semi-complex data-structures between a rust server and clients. gRPC implementations are suboptimal for this:
+Enable asynchronous full duplex streaming of semi-complex data-structures between a rust server and clients. gRPC implementations are suboptimal for this:
 
 * Unnecessary complexity
 * Annoying Protocol buffers
@@ -37,14 +37,14 @@ kumoko = "0.3"
 
 **Minimal Client:**
 ```rust
-use kumoko::client;
+use kumoko::client::Client;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let (mut rec, send) = client::connect("[::1]:50052").await?;
+    let mut client = Client::connect("[::1]:50052").await?;
 
-    send.send_request("Ferris".to_string()).await;
-    let msg: String = rec.get_response().await.unwrap();
+    client.send_request("Ferris".to_string()).await;
+    let msg: String = client.get_response().await.unwrap();
     println!("{}", msg);
 
     Ok(())
@@ -53,17 +53,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 **Minimal Server:**
 ```rust
-use kumoko::server;
+use kumoko::server::Server;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let (mut rec, send) = server::bind("[::1]:50052")?;
-
+    let mut server = Server::<String, String>::bind("[::1]:50052").await?;
     loop{
-        let (req, target): (String, _) = rec.get_request().await;
+        let (req, target) = server.get_request().await;
 
         let msg = format!("Hello {}! Happy to see you here!", req);
-        send.send_single(msg, target.into()).await?;
+        server.send_single(msg, target.into()).await?;
     }
 }
 ```

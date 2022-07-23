@@ -6,8 +6,8 @@ use crate::{Message, Origin, instance, Event};
 mod pool;
 use pool::{PoolMessage, SenderPool};
 
-pub struct Server<Req: Message, Res>{
-    receiver: Receiver<Req>,
+pub struct Server<Req: Message, Res: Message>{
+    receiver: Receiver<Req, Res>,
     sender: Sender<Res>,
 }
 
@@ -24,7 +24,7 @@ impl<Req: Message, Res: Message> Server<Req, Res>{
         let listener = TcpListener::bind(ip).await?;
     
         accept_loop(listener, sx, pool.clone())?;
-        let receiver = Receiver{rx};
+        let receiver = Receiver{rx, pool: pool.clone()};
         let sender = Sender{pool};
     
         Ok(Server{receiver, sender})
@@ -40,21 +40,18 @@ impl<Req: Message, Res: Message> Server<Req, Res>{
         self.receiver.get_request().await
     }
 
-    #[allow(unused)]
-    pub async fn send_single(&self, res: Res, target: Target) -> Result<(), SendError<PoolMessage<Res>>> {
-        self.send_response((res, target)).await
+    /// Default method for streaming to Clients.
+    pub async fn send_response(&self, res: Res, target: Target) -> Result<(), SendError<PoolMessage<Res>>> {
+        self.sender.send_response(res, target).await
     }
 
-    #[allow(unused)]
+    /// broadcast to every connected Client.
     pub async fn broadcast(&self, res: Res) -> Result<(), SendError<PoolMessage<Res>>> {
-        self.send_response((res, Target::All)).await
+        self.send_response(res, Target::All).await
     }
 
-    pub async fn send_response(&self, msg: (Res, Target)) -> Result<(), SendError<PoolMessage<Res>>> {
-        self.sender.send_response(msg).await
-    }
     /// 
-    pub fn into_split(self) -> (Receiver<Req>, Sender<Res>) {
+    pub fn into_split(self) -> (Receiver<Req, Res>, Sender<Res>) {
         (self.receiver, self.sender)
     }
 }
@@ -63,17 +60,24 @@ impl<Req: Message, Res: Message> Server<Req, Res>{
 /// 
 /// Server.into_split will create one for you.
 #[derive(Debug)]
-pub struct Receiver<Req: Message>{
-    rx: mpsc::Receiver<(Event<Req>, Origin)>
+pub struct Receiver<Req: Message, Res: Message>{
+    rx: mpsc::Receiver<(Event<Req>, Origin)>,
+    /// needs this to send disconnect messages to the pool
+    pool: mpsc::Sender<PoolMessage<Res>>
 }
 
-impl<Req: Message> Receiver<Req> {
+impl<Req: Message, Res: Message> Receiver<Req, Res> {
     /// Gets the next event if one is available, otherwise it waits until it is.
     /// 
     /// We .unwrap() because the accept_loop owns a sender - it can never go out of 
     /// scope (that is maybe a problem)
     pub async fn get_event(&mut self) -> (Event<Req>, Origin) {
-        self.rx.recv().await.unwrap()
+        let (e, o) = self.rx.recv().await.unwrap();
+        if let (Event::Disconnect(_), Origin::Id(id)) = (e.clone(), o) {
+            self.pool.send(PoolMessage::Disconnect(id)).await.unwrap();
+        }
+
+        (e, o)
     }
 
     /// Convenience method for applications only care about requests
@@ -96,18 +100,15 @@ pub struct Sender<Res>{
 }
 
 impl<Res: Message> Sender<Res>{
-    #[allow(unused)]
-    pub async fn send_single(&self, res: Res, target: Target) -> Result<(), SendError<PoolMessage<Res>>> {
-        self.send_response((res, target)).await
+
+    /// Default method for streaming to Clients.
+    pub async fn send_response(&self, res: Res, target: Target) -> Result<(), SendError<PoolMessage<Res>>> {
+        self.pool.send(PoolMessage::Msg((res, target))).await
     }
 
-    #[allow(unused)]
+    /// broadcast to every connected Client.
     pub async fn broadcast(&self, res: Res) -> Result<(), SendError<PoolMessage<Res>>> {
-        self.send_response((res, Target::All)).await
-    }
-
-    pub async fn send_response(&self, msg: (Res, Target)) -> Result<(), SendError<PoolMessage<Res>>> {
-        self.pool.send(PoolMessage::Msg(msg)).await
+        self.send_response(res, Target::All).await
     }
 }
 
@@ -123,6 +124,12 @@ impl From<Origin> for Target{
             Origin::Id(i) => Self::One(i),
             Origin::OnClient => unreachable!(),
         }
+    }
+}
+
+impl<U: Into<usize>> From<U> for Target {
+    fn from(id: U) -> Self {
+        Self::One(id.into())
     }
 }
 
@@ -142,7 +149,8 @@ fn accept_loop<Req: Message, Res: Message>(
 
             instance::Receiver::spawn_on_task(read, sx.clone(), id.into());
 
-            pool.send(PoolMessage::Join(write, id)).await.unwrap();
+            pool.send(PoolMessage::Connect(write, id)).await.unwrap();
+            sx.send((Event::Connect, id.into())).await.unwrap();
     
             id += 1;
             tokio::task::yield_now().await;

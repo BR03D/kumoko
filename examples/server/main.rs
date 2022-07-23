@@ -32,6 +32,6 @@ fn handle_map_req(send: server::Sender<Response>, from: Origin) {
     tokio::spawn(async move{
         let map = database::get_map().await.unwrap();
         let msg = Response::SendMap(map);
-        send.send_single(msg, from.into()).await.unwrap();
+        send.send_response(msg, from.into()).await.unwrap();
     });
 }
