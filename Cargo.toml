@@ -8,9 +8,7 @@ repository = "https://github.com/BR03D/kumoko.git"
 license = "MIT"
 keywords = ["async", "server", "netcode", "full-duplex"]
 categories = ["asynchronous", "concurrency", "network-programming"]
-include = ["/src", "README.md"]
-
-[lib]
+include = ["/src", "/examples", "/tests", "README.md"]
 
 [features]
 default = ["full"]
