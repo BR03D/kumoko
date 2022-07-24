@@ -4,7 +4,7 @@
 - [ ] dropping the Server **will** make the code panic almost immediatly.
 Thats not good.
 
-- [x]
+- [x] text
 
 ## Problems for the FarFuture<sup>tm</sup>
 instance::Receivers are initialized when a connection happens, and 
