@@ -93,6 +93,7 @@ impl<Msg: Message> Receiver<Msg>{
     }
 }
 /*
+    Legacy code KEKW
 
     async fn handle_multi(&self, multi: MultiMessage<Msg>) {
         match multi {

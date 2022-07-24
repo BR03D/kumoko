@@ -3,16 +3,25 @@
 A simple asynchronous server/client crate built 
 on tokio for easy two-way streaming.
 
+[![crates-badge]][crates-url]
+![license][mit-badge]
+
+[crates-badge]: https://img.shields.io/crates/v/kumoko
+[crates-url]: https://crates.io/crates/kumoko
+[mit-badge]: https://img.shields.io/crates/l/kumoko
+
 [Website](https://www.youtube.com/watch?v=dQw4w9WgXcQ) |
-[API Docs](https://www.youtube.com/watch?v=dQw4w9WgXcQ)
+[API Docs](docs.rs/kumoko/0.3.0)
 
 ## Unstable Warning!
 * Very early in development
 * The documentation sucks
+* Limited tests
 * .unwrap() is everywhere
 
 ## Motivation
-Enable asynchronous full duplex streaming of semi-complex data-structures between a rust server and clients. gRPC implementations are suboptimal for this:
+Enable asynchronous full duplex streaming of semi-complex data-structures
+between a rust server and clients. gRPC implementations are suboptimal for this:
 
 * Unnecessary complexity
 * Annoying Protocol buffers
@@ -31,8 +40,8 @@ trait Message: Send + 'static + Clone + Encode + Decode
 In your Cargo.toml: 
 ```toml
 [dependencies]
-tokio = { version = "1.20.0", features = ["macros", "rt-multi-thread"] }
-kumoko = "0.3"
+kumoko = { version = "0.3", features = ["full"] }
+tokio = { version = "1.20", features = ["macros", "rt-multi-thread"] }
 ```
 
 **Minimal Client:**
