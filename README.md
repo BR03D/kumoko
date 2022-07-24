@@ -11,7 +11,7 @@ on tokio for easy two-way streaming.
 [mit-badge]: https://img.shields.io/crates/l/kumoko
 
 [Website](https://www.youtube.com/watch?v=dQw4w9WgXcQ) |
-[API Docs](docs.rs/kumoko/0.3.0)
+[API Docs](https://docs.rs/kumoko/)
 
 ## Unstable Warning!
 * Very early in development
