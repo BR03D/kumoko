@@ -23,7 +23,7 @@ Enable asynchronous full duplex streaming of semi-complex data-structures betwee
 * Every Client has a full duplex connection
 * Any data structure that implements `Message` can be transmitted:
 ```rust
-trait Message: Send + Clone + Serialize + DeserializeOwned + 'static
+trait Message: Send + 'static + Clone + Encode + Decode
 ```
 
 ## Examples
@@ -62,7 +62,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         let (req, target) = server.get_request().await;
 
         let msg = format!("Hello {}! Happy to see you here!", req);
-        server.send_single(msg, target.into()).await?;
+        server.send_response(msg, target.into()).await?;
     }
 }
 ```

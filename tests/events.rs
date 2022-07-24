@@ -14,7 +14,7 @@ async fn events() {
     //doesnt do anything
     match event{
         Event::Message(req) => {
-            server.send_response(req + 4, origin.into()).await.unwrap();
+            server.send_response(req + 4, origin.into()).await;
         },
         Event::IllegalData(_) => unimplemented!(),
         Event::Disconnect(c) => {

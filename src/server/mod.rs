@@ -1,6 +1,6 @@
 use std::io;
 
-use tokio::{net::{TcpListener, ToSocketAddrs}, sync::mpsc::{self, error::SendError}};
+use tokio::{net::{TcpListener, ToSocketAddrs}, sync::mpsc};
 use crate::{Message, Origin, instance, Event};
 
 mod pool;
@@ -35,19 +35,20 @@ impl<Req: Message, Res: Message> Server<Req, Res>{
         self.receiver.get_event().await
     }
 
-    /// Convenience method for applications only care about requests
+    /// Convenience method for applications which only care about requests
     pub async fn get_request(&mut self) -> (Req, Origin) {
         self.receiver.get_request().await
     }
 
     /// Default method for streaming to Clients.
-    pub async fn send_response(&self, res: Res, target: Target) -> Result<(), SendError<PoolMessage<Res>>> {
-        self.sender.send_response(res, target).await
+    pub async fn send_response(&self, res: Res, target: Target) {
+        self.sender.send_response(res, target).await;
     }
 
+    #[cfg(feature = "broadcast")]
     /// broadcast to every connected Client.
-    pub async fn broadcast(&self, res: Res) -> Result<(), SendError<PoolMessage<Res>>> {
-        self.send_response(res, Target::All).await
+    pub async fn broadcast(&self, res: Res) {
+        self.send_response(res, Target::All).await;
     }
 
     /// 
@@ -73,14 +74,14 @@ impl<Req: Message, Res: Message> Receiver<Req, Res> {
     /// scope (that is maybe a problem)
     pub async fn get_event(&mut self) -> (Event<Req>, Origin) {
         let (e, o) = self.rx.recv().await.unwrap();
-        if let (Event::Disconnect(_), Origin::Id(id)) = (e.clone(), o) {
+        if let (Event::Disconnect(_), Origin::Id(id)) = (&e, o) {
             self.pool.send(PoolMessage::Disconnect(id)).await.unwrap();
         }
 
         (e, o)
     }
 
-    /// Convenience method for applications only care about requests
+    /// Convenience method for applications which only care about requests
     pub async fn get_request(&mut self) -> (Req, Origin) {
         loop{
             if let (Event::Message(msg), o) = self.get_event().await{
@@ -102,18 +103,20 @@ pub struct Sender<Res>{
 impl<Res: Message> Sender<Res>{
 
     /// Default method for streaming to Clients.
-    pub async fn send_response(&self, res: Res, target: Target) -> Result<(), SendError<PoolMessage<Res>>> {
-        self.pool.send(PoolMessage::Msg((res, target))).await
+    pub async fn send_response(&self, res: Res, target: Target) {
+        self.pool.send(PoolMessage::Msg((res, target))).await.unwrap();
     }
 
     /// broadcast to every connected Client.
-    pub async fn broadcast(&self, res: Res) -> Result<(), SendError<PoolMessage<Res>>> {
-        self.send_response(res, Target::All).await
+    #[cfg(feature = "broadcast")]
+    pub async fn broadcast(&self, res: Res) {
+        self.send_response(res, Target::All).await;
     }
 }
 
 #[derive(Debug, Clone, Copy)]
 pub enum Target{
+    #[cfg(feature = "broadcast")]
     All,
     One(usize),
 }

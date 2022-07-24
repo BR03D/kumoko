@@ -36,11 +36,11 @@ pub struct Illegal{
 }
 
 impl<Msg: Message> Event<Msg> {
-    pub fn clean() -> Self{
+    pub(crate) fn clean() -> Self{
         Self::Disconnect(DisconnectEvent::Clean)
     }
 
-    pub fn dirty() -> Self{
+    pub(crate) fn dirty() -> Self{
         Self::Disconnect(DisconnectEvent::Dirty)
     }
 }

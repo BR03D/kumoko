@@ -15,9 +15,11 @@ publish = false
 [lib]
 
 [features]
-default = ["server", "client"]
+default = ["full"]
+broadcast = []
 client = []
 server = []
+full = ["client", "server", "broadcast"]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -44,4 +46,8 @@ required-features = ["server", "client"]
 
 [[test]]
 name="many_clients"
+required-features = ["server", "client"]
+
+[[test]]
+name="events"
 required-features = ["server", "client"]

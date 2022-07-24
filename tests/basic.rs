@@ -10,7 +10,7 @@ async fn basic() {
     client.send_request(15).await;
 
     let (req, origin): (i32, _) = server.get_request().await;
-    server.send_response(req + 4, origin.into()).await.unwrap();
+    server.send_response(req + 4, origin.into()).await;
 
     let res: i32 = client.get_response().await.unwrap();
     

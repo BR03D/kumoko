@@ -52,28 +52,30 @@ impl<Msg: Message> Receiver<Msg>{
 
         let mut buf = [0; SIZE];
         let bytes_read = self.stream.try_read(&mut buf)?;
-        if bytes_read == 0 {
-            self.send_event(Event::clean()).await;
-        };
 
-        //not sure what happens if exactly 256 bytes are sent - might be an error?
-        if bytes_read == SIZE {
-            let vec = self.receive_vec().await?;
-            let concat = [&buf [..], &vec].concat();
-            self.decode_loop(&concat).await;
-        } else {
-            self.decode_loop(&buf [..bytes_read]).await;
+        match bytes_read {
+            0 => self.send_event(Event::clean()).await,
+            SIZE => self.receive_vec(&buf).await?,
+            n => self.decode_loop(&buf [..n]).await
         }
 
         Ok(())
     }
 
-    //prolly incorrect behaviour
-    async fn receive_vec(&self) -> io::Result<Vec<u8>> {
-        let mut buf = Vec::new();
-        self.stream.try_read(&mut buf)?;
+    async fn receive_vec(&self, buf: &[u8]) -> io::Result<()> {
+        let mut vec = Vec::new();
 
-        Ok(buf)
+        if let Err(e) = self.stream.try_read(&mut vec){
+            // if exactly 256 bytes are sent, this will happen:
+            if e.kind() == io::ErrorKind::WouldBlock {
+                self.decode_loop(&buf).await;
+            }
+            else { return Err(e) }
+        };
+        vec = [&buf [..], &vec].concat();
+        self.decode_loop(&vec).await;
+
+        Ok(())
     }
 
     async fn decode_loop(&self, data: &[u8]) {

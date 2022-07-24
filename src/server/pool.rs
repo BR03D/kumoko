@@ -8,13 +8,13 @@ use crate::{Message, server::Target, instance};
 ///Lives on a seperate task
 /// 
 /// Handles adding and removing Senders and propagating Messages.
-pub struct SenderPool<Res>{
+pub(crate) struct SenderPool<Res>{
     map: HashMap<usize, mpsc::Sender<Res>>,
     rx: mpsc::Receiver<PoolMessage<Res>>
 }
 
 impl<Res: Message> SenderPool<Res> {
-    pub fn spawn_on_task() -> mpsc::Sender<PoolMessage<Res>> {
+    pub(crate) fn spawn_on_task() -> mpsc::Sender<PoolMessage<Res>> {
         let (sx, rx) = mpsc::channel(32);
         SenderPool{ rx, map: HashMap::new(), }.recv_loop();
 
@@ -47,6 +47,7 @@ impl<Res: Message> SenderPool<Res> {
 
     async fn send(&mut self, (res, target): (Res, Target)) {
         match target {
+            #[cfg(feature = "broadcast")]
             Target::All => {
                 for (_, sender) in self.map.iter() {
                     let res = res.clone();
@@ -62,7 +63,7 @@ impl<Res: Message> SenderPool<Res> {
 }
 
 #[derive(Debug)]
-pub enum PoolMessage<Msg>{
+pub(crate) enum PoolMessage<Msg>{
     Connect(OwnedWriteHalf, usize),
     Msg((Msg, Target)),
     Disconnect(usize),

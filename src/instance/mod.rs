@@ -1,5 +1,5 @@
 mod receiver;
 mod sender;
 
-pub use receiver::Receiver;
-pub use sender::Sender;
+pub(crate) use receiver::Receiver;
+pub(crate) use sender::Sender;
