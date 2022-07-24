@@ -9,7 +9,6 @@ license = "MIT"
 keywords = ["async", "server", "netcode", "full-duplex"]
 categories = ["asynchronous", "concurrency", "network-programming"]
 include = ["/src", "README.md"]
-publish = false
 
 [lib]
 
@@ -25,11 +24,6 @@ full = ["client", "server", "broadcast"]
 [dependencies]
 bincode = "2.0.0-rc.1"
 tokio = { version = "1.20", features = ["macros", "net", "rt-multi-thread", "sync"] }
-#async-recursion = "1.0"
-
-[[example]]
-name = "server"
-required-features = ["server"]
 
 [[example]]
 name="minimal_server"

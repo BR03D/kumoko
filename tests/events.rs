@@ -3,6 +3,7 @@ use kumoko::{client::Client, server::Server, DisconnectEvent, Event};
 const IP: &str = "[::1]:50052";
 
 #[tokio::test]
+#[ignore]
 async fn events() {
     let mut server = Server::<i32, i32>::bind(IP).await.unwrap();
     let mut client = Client::connect(IP).await.unwrap();
