@@ -9,6 +9,7 @@ license = "MIT"
 keywords = ["async", "server", "netcode", "full-duplex"]
 categories = ["asynchronous", "concurrency", "network-programming"]
 include = ["/src", "README.md"]
+publish = false
 
 [lib]
 
