@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{sync::Arc, io};
 
 use bincode::error::DecodeError;
 
@@ -19,7 +19,8 @@ pub enum Event<Msg: Message>{
     Connect,
     Message(Msg),
     IllegalData(Illegal),
-    Disconnect(DisconnectEvent)
+    Disconnect(DisconnectEvent),
+    RealError(Arc<io::Error>),
 }
 
 #[derive(Debug, Clone, Eq, PartialEq)]
@@ -42,6 +43,10 @@ impl<Msg: Message> Event<Msg> {
 
     pub(crate) fn dirty() -> Self{
         Self::Disconnect(DisconnectEvent::Dirty)
+    }
+
+    pub(crate) fn from_err(err: io::Error) -> Self{
+        Self::RealError(Arc::new(err))
     }
 }
 

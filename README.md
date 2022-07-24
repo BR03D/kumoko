@@ -32,7 +32,7 @@ between a rust server and clients. gRPC implementations are suboptimal for this:
 * Every Client has a full duplex connection
 * Any data structure that implements `Message` can be transmitted:
 ```rust
-trait Message: Send + 'static + Clone + Encode + Decode
+trait Message: Send + Encode + Decode + 'static
 ```
 
 ## Examples

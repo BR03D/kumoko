@@ -158,7 +158,7 @@ fn accept_loop<Req: Message, Res: Message>(
             id += 1;
             tokio::task::yield_now().await;
         }
-        #[allow(unused)]
+        #[allow(unreachable_code)]
         Ok::<(), io::Error>(())
     });
 

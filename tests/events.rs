@@ -18,6 +18,7 @@ async fn events() {
             server.send_response(req + 4, origin.into()).await;
         },
         Event::IllegalData(_) => unimplemented!(),
+        Event::RealError(_) => unimplemented!(),
         Event::Disconnect(c) => {
             assert_eq!(c, DisconnectEvent::Clean);
             return
