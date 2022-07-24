@@ -1,9 +1,9 @@
 # Kumoko
 
 ## Problems for the Now
-- dropping the Server **will** make the code panic almost immediatly. Thats not good.
+- Dropping the Server **will** make the code panic almost immediatly. Thats not good.
 - The docs **really** are not great.
-- Events that arent Requests are not tested. Like at all.
+- Events that arent Messages are not tested. Like at all.
 - There are no examples for splitting the server/client. Its not really tested a lot either
 
 ## Problems for the FarFuture<sup>tm</sup>
