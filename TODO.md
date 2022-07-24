@@ -7,4 +7,4 @@
 - There are no examples for splitting the server/client. Its not really tested a lot either
 
 ## Problems for the FarFuture<sup>tm</sup>
-instance::Receivers are initialized when a connection happens, and are not dropped if the server drops. They will drop themselves when trying to send an Event and the server::Receiver is dropped - however if you drop the server and you have connected clients who never send any messages the instance::Receiver never drops. This is very difficult to fix. Does anyone *really* want this fixed?
+- instance::Receivers are initialized when a connection happens, and will only drop themselves when trying to send an Event. If Clients connect and never disconnect it will simply never drop - leaking memory in the process. Maybe add a timeout?
