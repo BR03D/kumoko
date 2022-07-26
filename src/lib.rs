@@ -1,10 +1,13 @@
+/// Definitions for Connection Events
+pub mod event;
 pub use bincode::{Decode, Encode};
-pub use event::{Origin, Event, DisconnectEvent, Illegal};
 
 #[cfg(feature = "server")]
+/// Module for Server functionality. Enable the server feature to use it.
 pub mod server;
 
 #[cfg(feature = "client")]
+/// Module for Client functionality. Enable the client feature to use it.
 pub mod client;
 
 #[cfg(feature = "broadcast")]
@@ -27,6 +30,5 @@ pub trait Message:              Send + fmt::Debug + Encode + Decode + 'static{}
 #[cfg(not(feature = "broadcast"))]
 impl<T> Message for T where T:  Send + fmt::Debug + Encode + Decode + 'static{}
 
-mod event;
 mod instance;
 use std::fmt;

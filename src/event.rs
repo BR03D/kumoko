@@ -8,24 +8,33 @@ use crate::Message;
 /// can be used to transform into a `Target` to reply to.
 #[derive(Debug, Clone, Copy)]
 pub enum Origin{
+    /// The Id of the Client.
     Id(usize),
-    /// A Client can ignore this entirely
+    /// A Client can ignore this entirely.
     OnClient,
 }
 
 /// The Connection did something!
 #[derive(Debug, Clone)]
 pub enum Event<Msg: Message>{
+    /// It connected!
     Connect,
+    /// It sent a Message!
     Message(Msg),
+    /// It sent Illegal data!
     IllegalData(Illegal),
+    /// It disconnected!
     Disconnect(DisconnectEvent),
+    /// An Error which didnt break the connection occured.
     RealError(Arc<io::Error>),
 }
 
+/// The connection was broken by:
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub enum DisconnectEvent{
+    /// a call to close it.
     Clean,
+    /// an error.
     Dirty,
 }
 

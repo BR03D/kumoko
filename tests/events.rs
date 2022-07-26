@@ -1,4 +1,4 @@
-use kumoko::{client::Client, server::Server, DisconnectEvent, Event};
+use kumoko::{client::Client, server::Server, event::{DisconnectEvent, Event}};
 
 const IP: &str = "[::1]:50052";
 
