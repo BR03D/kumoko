@@ -6,7 +6,7 @@ edition = "2021"
 description = "A simple asynchronous server/client crate built on tokio for easy two-way streaming."
 repository = "https://github.com/BR03D/kumoko.git"
 license = "MIT"
-keywords = ["async", "server", "netcode", "full-duplex"]
+keywords = ["async", "server", "netcode", "full-duplex", "rpc"]
 categories = ["asynchronous", "concurrency", "network-programming"]
 include = ["/src", "/examples", "/tests", "README.md"]
 
@@ -21,7 +21,7 @@ full = ["client", "server", "broadcast"]
 
 [dependencies]
 bincode = "2.0.0-rc.1"
-tokio = { version = "1.20", features = ["macros", "net", "rt-multi-thread", "sync"] }
+tokio = { version = "1.20", features = ["macros", "net", "rt-multi-thread", "sync", "time"] }
 
 [[example]]
 name="minimal_server"

@@ -1,6 +1,6 @@
-use std::io;
+use std::{io, time::Duration};
 
-use tokio::{net::{TcpListener, ToSocketAddrs}, sync::mpsc};
+use tokio::{net::{TcpListener, ToSocketAddrs}, sync::{mpsc, watch}};
 use crate::{Message, Origin, instance, Event};
 
 mod pool;
@@ -14,17 +14,23 @@ pub struct Server<Req: Message, Res: Message>{
 impl<Req: Message, Res: Message> Server<Req, Res>{
     ///Initializes the accept loop, returning a Server. It can be 
     /// split into a Reciever and Sender for async operations.
-    pub async fn bind<I>(
-        ip: I
-    ) -> io::Result<Server<Req, Res>>
+    pub async fn bind<I>(ip: I) -> io::Result<Server<Req, Res>>
         where I: ToSocketAddrs + Send + 'static,
     {
-        let (sx, rx) = mpsc::channel(32);
-        let pool = SenderPool::spawn_on_task();
+        Self::bind_with_config(ip, Config::default()).await
+    }
+    ///Initializes the accept loop, returning a Server. It can be 
+    /// split into a Reciever and Sender for async operations.
+    pub async fn bind_with_config<I>(ip: I, config: Config) -> io::Result<Server<Req, Res>>
+        where I: ToSocketAddrs + Send + 'static,
+    {
+        let (sx, rx) = mpsc::channel(config.receiver_buffer);
+        let pool = SenderPool::spawn_on_task(config.pool_buffer, config.client_buffer);
+        let (_watch_sender, watch) = watch::channel(());
         let listener = TcpListener::bind(ip).await?;
     
-        accept_loop(listener, sx, pool.clone())?;
-        let receiver = Receiver{rx, pool: pool.clone()};
+        accept_loop(listener, sx, pool.clone(), watch, config.timeout)?;
+        let receiver = Receiver{rx, pool: pool.clone(), _watch_sender};
         let sender = Sender{pool};
     
         Ok(Server{receiver, sender})
@@ -64,17 +70,17 @@ impl<Req: Message, Res: Message> Server<Req, Res>{
 pub struct Receiver<Req: Message, Res: Message>{
     rx: mpsc::Receiver<(Event<Req>, Origin)>,
     /// needs this to send disconnect messages to the pool
-    pool: mpsc::Sender<PoolMessage<Res>>
+    pool: mpsc::Sender<PoolMessage<Res>>,
+    _watch_sender: watch::Sender<()>,
 }
 
 impl<Req: Message, Res: Message> Receiver<Req, Res> {
     /// Gets the next event if one is available, otherwise it waits until it is.
-    /// 
-    /// We .unwrap() because the accept_loop owns a sender - it can never go out of 
-    /// scope (that is maybe a problem)
     pub async fn get_event(&mut self) -> (Event<Req>, Origin) {
+        // the accept loop owns a sender and it only drops once this drops.
         let (e, o) = self.rx.recv().await.unwrap();
         if let (Event::Disconnect(_), Origin::Id(id)) = (&e, o) {
+            // while this owns a sender, the pool cant drop
             self.pool.send(PoolMessage::Disconnect(id)).await.unwrap();
         }
 
@@ -104,7 +110,7 @@ impl<Res: Message> Sender<Res>{
 
     /// Default method for streaming to Clients.
     pub async fn send_response(&self, res: Res, target: Target) {
-        self.pool.send(PoolMessage::Msg((res, target))).await.unwrap();
+        self.pool.send(PoolMessage::Msg(res, target)).await.unwrap();
     }
 
     /// broadcast to every connected Client.
@@ -119,6 +125,24 @@ pub enum Target{
     #[cfg(feature = "broadcast")]
     All,
     One(usize),
+}
+
+/// Config for the Server
+pub struct Config{
+    /// If no new requests appear within this duration, we drop the client.
+    timeout: Duration,
+    /// The size of the channel buffer per Client Sender.
+    client_buffer: usize,
+    /// the size of the channel buffer for the receiver.
+    receiver_buffer: usize,
+    /// The size of the channel buffer for the SenderPool.
+    pool_buffer: usize,
+}
+
+impl Default for Config{
+    fn default() -> Config {
+        Config { timeout: Duration::MAX, client_buffer: 3, receiver_buffer: 32, pool_buffer: 32 }
+    }
 }
 
 impl From<Origin> for Target{
@@ -136,28 +160,36 @@ impl<U: Into<usize>> From<U> for Target {
     }
 }
 
-/// Currently no way to end the accept loop - if you repeatedly bind and close 
-/// servers this will leak memory for now
 fn accept_loop<Req: Message, Res: Message>(
     listener: TcpListener,
     sx:   mpsc::Sender<(Event<Req>, Origin)>, 
     pool: mpsc::Sender<PoolMessage<Res>>,
+    mut watch: watch::Receiver<()>,
+    timeout: Duration,
 ) -> io::Result<()> {
     let mut id = 0;
     
     tokio::spawn(async move{
         loop{
-            let (stream, _) = listener.accept().await?;
-            let (read, write) = stream.into_split();
+            tokio::select! {
+                _ = watch.changed() => {
+                    println!("Kumoko: Shutting down accept loop");
+                    return Ok(())
+                }
+                res = listener.accept() => {
+                    let (stream, _) = res?;
+                    let (read, write) = stream.into_split();
 
-            instance::Receiver::spawn_on_task(read, sx.clone(), id.into());
+                    instance::Receiver::spawn_on_task(read, sx.clone(), id.into(), timeout);
 
-            pool.send(PoolMessage::Connect(write, id)).await.unwrap();
-            sx.send((Event::Connect, id.into())).await.unwrap();
-    
-            id += 1;
+                    pool.send(PoolMessage::Connect(write, id)).await.unwrap();
+                    sx.send((Event::Connect, id.into())).await.unwrap();
+            
+                    id += 1;    
+                }
+            };
             tokio::task::yield_now().await;
-        }
+            }
         #[allow(unreachable_code)]
         Ok::<(), io::Error>(())
     });

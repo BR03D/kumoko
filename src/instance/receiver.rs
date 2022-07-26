@@ -1,4 +1,4 @@
-use std::io::{self, ErrorKind};
+use std::{io::{self, ErrorKind}, time::Duration};
 
 use tokio::{net::tcp::OwnedReadHalf, sync::mpsc};
 
@@ -7,38 +7,51 @@ use crate::{Origin, Message, Event, Illegal};
 pub struct Receiver<Msg: Message>{
     stream: OwnedReadHalf,
     sx: mpsc::Sender<(Event<Msg>, Origin)>,
-    id: Origin
+    id: Origin,
+    timeout: Duration,
 }
 
 impl<Msg: Message> Receiver<Msg>{
     pub fn spawn_on_task(
         stream: OwnedReadHalf, 
         sx: mpsc::Sender<(Event<Msg>, Origin)>, 
-        id: Origin
+        id: Origin,
+        timeout: Duration,
     ) {
-        Receiver{stream, sx, id}.receive_loop().ok();
+        Receiver{stream, sx, id, timeout}.receive_loop().ok();
     }
 
     fn receive_loop(self) -> Result<(), ()> {
         tokio::spawn(async move{
             loop{
                 tokio::task::yield_now().await;
+
+                tokio::select! {
+                    _ = tokio::time::sleep(self.timeout) => {
+                        println!("client {} timed out!", self.id);
+                        break;
+                    }
+
+                    data = self.receive_data() => {
+                        match data {
+                            Ok(End::No) => (),
+                            Ok(End::Yes) => {
+                                self.send_event(Event::clean()).await?
+                            },
+                            Err(err) => match err.kind() {
+                                ErrorKind::WouldBlock => (),
+                                ErrorKind::ConnectionReset => {
+                                    self.send_event(Event::dirty()).await?
+                                },
+                                _ => {
+                                    self.send_event(Event::from_err(err)).await?
+                                },
+                            },
+                        }
+                    }
+                };
                 
-                match self.receive_data().await {
-                    Ok(End::No) => (),
-                    Ok(End::Yes) => {
-                        self.send_event(Event::clean()).await?
-                    },
-                    Err(err) => match err.kind() {
-                        ErrorKind::WouldBlock => (),
-                        ErrorKind::ConnectionReset => {
-                            self.send_event(Event::dirty()).await?
-                        },
-                        _ => {
-                            self.send_event(Event::from_err(err)).await?
-                        },
-                    },
-                }
+                
             }
             #[allow(unreachable_code)]
             Ok::<(), ()>(())

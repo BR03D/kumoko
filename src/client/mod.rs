@@ -1,4 +1,4 @@
-use std::io;
+use std::{io, time::Duration};
 
 use tokio::{net::{ToSocketAddrs, TcpStream}, sync::mpsc};
 
@@ -11,17 +11,19 @@ pub struct Client<Req, Res: Message>{
 }
 
 impl<Req: Message, Res: Message> Client<Req, Res>{
-    pub async fn connect<A: ToSocketAddrs>(
-        ip: A
-    ) -> io::Result<Client<Req, Res>> {
+    pub async fn connect<A: ToSocketAddrs>(ip: A) -> io::Result<Client<Req, Res>> {
+        Self::connect_with_config(ip, Config::default()).await
+    }
+
+    pub async fn connect_with_config<A: ToSocketAddrs>(ip: A, config: Config) -> io::Result<Client<Req, Res>> {
         let stream = TcpStream::connect(ip).await?;
         let (read, write) = stream.into_split();
     
-        let (sx, rx) = mpsc::channel(32);
-        instance::Receiver::spawn_on_task(read, sx, Origin::OnClient);
+        let (sx, rx) = mpsc::channel(config.sender_buffer);
+        instance::Receiver::spawn_on_task(read, sx, Origin::OnClient, config.timeout);
         let receiver = Receiver{rx};
     
-        let (sx, rx) = mpsc::channel(32);
+        let (sx, rx) = mpsc::channel(config.receiver_buffer);
         instance::Sender::spawn_on_task(write, rx);
         let sender = Sender{sx};
         
@@ -76,6 +78,25 @@ pub struct Sender<Req>{
 
 impl<Req: Message> Sender<Req> {
     pub async fn send_request(&self, req: Req) {
-        self.sx.send(req).await.unwrap();
+        match self.sx.send(req).await {
+            Ok(_) =>(), 
+            Err(_) => unreachable!(),
+        }
+    }
+}
+
+/// Config for the Client
+pub struct Config{
+    /// If no new Responses appear within this duration, we drop the receiver.
+    timeout: Duration,
+    /// The size of the channel buffer for the Sender.
+    sender_buffer: usize,
+    /// the size of the channel buffer for the Receiver.
+    receiver_buffer: usize,
+}
+
+impl Default for Config{
+    fn default() -> Config {
+        Config { timeout: Duration::MAX, sender_buffer: 3, receiver_buffer: 3 }
     }
 }

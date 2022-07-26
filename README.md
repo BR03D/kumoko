@@ -14,10 +14,9 @@ on tokio for easy two-way streaming.
 [API Docs](https://docs.rs/kumoko/)
 
 ## Unstable Warning!
-* Very early in development
+* Early in development
 * The documentation sucks
 * Limited tests
-* .unwrap() is everywhere
 
 ## Motivation
 Enable asynchronous full duplex streaming of semi-complex data-structures
