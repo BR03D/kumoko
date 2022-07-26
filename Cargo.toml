@@ -1,6 +1,6 @@
 [package]
 name = "kumoko"
-version = "0.4.0"
+version = "0.4.1"
 authors = ["BR03D"]
 edition = "2021"
 description = "A simple asynchronous server/client crate built on tokio for easy two-way streaming."
