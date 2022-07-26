@@ -136,13 +136,13 @@ pub enum Target{
 /// Config for the Server
 pub struct Config{
     /// If no new requests appear within this duration, we drop the client.
-    timeout: Duration,
+    pub timeout: Duration,
     /// The size of the channel buffer per Client Sender.
-    client_buffer: usize,
+    pub client_buffer: usize,
     /// the size of the channel buffer for the receiver.
-    receiver_buffer: usize,
+    pub receiver_buffer: usize,
     /// The size of the channel buffer for the SenderPool.
-    pool_buffer: usize,
+    pub pool_buffer: usize,
 }
 
 impl Default for Config{

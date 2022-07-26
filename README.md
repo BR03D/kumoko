@@ -39,7 +39,7 @@ trait Message: Send + Encode + Decode + 'static
 In your Cargo.toml: 
 ```toml
 [dependencies]
-kumoko = { version = "0.3", features = ["full"] }
+kumoko = { version = "0.4", features = ["full"] }
 tokio = { version = "1.20", features = ["macros", "rt-multi-thread"] }
 ```
 

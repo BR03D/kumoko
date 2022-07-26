@@ -109,11 +109,11 @@ impl<Req: Message> Sender<Req> {
 /// Config for the Client
 pub struct Config{
     /// If no new Responses appear within this duration, we drop the receiver.
-    timeout: Duration,
+    pub timeout: Duration,
     /// The size of the channel buffer for the Sender.
-    sender_buffer: usize,
+    pub sender_buffer: usize,
     /// the size of the channel buffer for the Receiver.
-    receiver_buffer: usize,
+    pub receiver_buffer: usize,
 }
 
 impl Default for Config{
