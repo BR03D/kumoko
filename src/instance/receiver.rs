@@ -29,22 +29,16 @@ impl<Msg: Message> Receiver<Msg>{
                 tokio::select! {
                     biased;
                     _ = self.sx.closed() => { return Ok::<(), ()>(()) }
-                    _ = tokio::time::sleep(self.timeout) => { return Ok::<(), ()>(()) }
+                    _ = tokio::time::sleep(self.timeout) => { return Ok(())}
 
                     data = self.receive_data() => {
                         match data {
-                            Ok(End::No) => (),
-                            Ok(End::Yes) => {
-                                self.send_event(Event::clean()).await?
-                            },
+                            Ok(Err(_)) => return self.send_event(Event::clean()).await,
+                            Ok(Ok(_)) => (),
                             Err(err) => match err.kind() {
                                 ErrorKind::WouldBlock => (),
-                                ErrorKind::ConnectionReset => {
-                                    self.send_event(Event::dirty()).await?
-                                },
-                                _ => {
-                                    self.send_event(Event::from_err(err)).await?
-                                },
+                                ErrorKind::ConnectionReset => return self.send_event(Event::dirty()).await,
+                                _ => self.send_event(Event::from_err(err)).await?,
                             },
                         }
                     }
@@ -61,7 +55,7 @@ impl<Msg: Message> Receiver<Msg>{
         }
     }
 
-    async fn receive_data(&self) -> io::Result<End> {
+    async fn receive_data(&self) -> io::Result<Result<(), ()>> {
         self.stream.readable().await?;
         const SIZE: usize = 256;
 
@@ -69,45 +63,42 @@ impl<Msg: Message> Receiver<Msg>{
         let bytes_read = self.stream.try_read(&mut buf)?;
 
         match bytes_read {
-            0 => return Ok(End::Yes),
+            0 => return Ok(Err(())),
             SIZE => self.receive_vec(&buf).await,
-            n => self.decode_loop(&buf [..n]).await,
+            n => Ok(self.decode_loop(&buf [..n]).await),
         }
     }
 
-    async fn receive_vec(&self, buf: &[u8]) -> io::Result<End> {
+    async fn receive_vec(&self, buf: &[u8]) -> io::Result<Result<(), ()>> {
         let mut vec = Vec::new();
 
         if let Err(e) = self.stream.try_read(&mut vec){
             // if exactly 256 bytes are sent, this will happen:
             if e.kind() == io::ErrorKind::WouldBlock {
-                return self.decode_loop(&buf).await;
+                return Ok(self.decode_loop(&buf).await)
             }
             else { return Err(e) }
         };
         vec = [&buf [..], &vec].concat();
-        self.decode_loop(&vec).await
+        Ok(self.decode_loop(&vec).await)
     }
 
-    async fn decode_loop(&self, data: &[u8]) -> io::Result<End> {
+    async fn decode_loop(&self, data: &[u8]) -> Result<(), ()> {
         let mut slice = &data[..];
         let config = bincode::config::standard();
 
         while slice.len() > 0{
             let res = bincode::decode_from_std_read::<Msg,_,_>(&mut slice, config);
 
-            let i =  match res{
-                Ok(msg) => self.send_event(msg.into()).await,
-                Err(err) => self.send_event(Illegal{vec: Vec::from(slice), err: err.into()}.into()).await,
+            match res{
+                Ok(msg) => self.send_event(msg.into()).await?,
+                Err(err) => {
+                    self.send_event(Illegal{vec: Vec::from(slice), err: err.into()}.into()).await?;
+                    return Ok(())
+                },
             };
-            if let Err(()) = i{ return Ok(End::Yes) }
         };
 
-        return Ok(End::No)
+        return Ok(())
     }
-}
-
-enum End{
-    Yes,
-    No,
 }

@@ -176,16 +176,17 @@ fn accept_loop<Req: Message, Res: Message>(
     
     tokio::spawn(async move{
         loop{
-            let (stream, _) = listener.accept().await?;
+            let stream = match listener.accept().await{
+                Ok((stream, _)) => stream,
+                Err(e) => { eprintln!("{}", e); continue },
+            };
             let (read, write) = stream.into_split();
 
             instance::Receiver::spawn_on_task(read, sx.clone(), id.into(), timeout);
 
             pool.send(PoolMessage::Connect(write, id)).await.expect("while this owns a sender, the pool wont drop");
-            if let Err(_) = sx.send((Event::Connect, id.into())).await{
-                // happens 
-                return Ok::<(), io::Error>(())
-            };
+
+            if let Err(_) = sx.send((Event::Connect, id.into())).await{ return };
     
             id += 1;
             tokio::task::yield_now().await;

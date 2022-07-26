@@ -100,7 +100,7 @@ impl<Req: Message> Sender<Req> {
     /// Default method for streaming to the Server.
     pub async fn send_request(&self, req: Req) {
         match self.sx.send(req).await {
-            Ok(_) =>(), 
+            Ok(_) => (),
             Err(_) => unreachable!(),
         }
     }
