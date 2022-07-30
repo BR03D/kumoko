@@ -1,7 +1,7 @@
 //! Module for Client functionality. Enable the client feature to use it.
 
 use std::{io, time::Duration};
-use tokio::{net::{ToSocketAddrs, TcpStream}, sync::mpsc};
+use tokio::{net::{ToSocketAddrs, TcpStream}, sync::mpsc::{self, error::TryRecvError}};
 use crate::{Message, instance, event::{Origin, Event}};
 
 #[derive(Debug)]
@@ -48,6 +48,14 @@ impl<Req: Message, Res: Message> Client<Req, Res>{
         self.receiver.get_response().await
     }
 
+    pub fn try_get_event(&mut self) -> Result<Event<Res>, TryRecvError> {
+        self.receiver.try_get_event()
+    }
+
+    pub fn try_get_response(&mut self) -> Result<Res, TryRecvError> {
+        self.receiver.try_get_response()
+    }
+
     /// Default method for streaming to the Server.
     pub async fn send_request(&self, req: Req) {
         self.sender.send_request(req).await
@@ -89,6 +97,23 @@ impl<Res: Message> Receiver<Res> {
                 Some(Event::Message(res)) => return Some(res),
                 Some(_) => continue,
                 None => return None,
+            }
+        }
+    }
+
+    pub fn try_get_event(&mut self) -> Result<Event<Res>, TryRecvError> {
+        match self.rx.try_recv() {
+            Ok((msg, _)) => Ok(msg),
+            Err(e) => Err(e),
+        }
+    }
+
+    pub fn try_get_response(&mut self) -> Result<Res, TryRecvError> {
+        loop{
+            match self.try_get_event(){
+                Ok(Event::Message(res)) => return Ok(res),
+                Ok(_) => continue,
+                Err(e) => return Err(e),
             }
         }
     }
