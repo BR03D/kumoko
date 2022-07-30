@@ -11,17 +11,18 @@ categories = ["asynchronous", "concurrency", "network-programming"]
 include = ["/src", "/examples", "/tests", "README.md"]
 
 [features]
-default = ["full"]
-broadcast = []
+default = ["client", "server", "broadcast", "bevy"]
+broadcast = ["server"]
 client = []
 server = []
-full = ["client", "server", "broadcast"]
+bevy = ["dep:bevy"]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
 bincode = "2.0.0-rc.1"
 tokio = { version = "1.20", features = ["macros", "net", "rt-multi-thread", "sync", "time"] }
+bevy = { version = "0.8", optional = true }
 
 [[example]]
 name="minimal_server"

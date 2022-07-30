@@ -1,8 +1,13 @@
 //! Module for Client functionality. Enable the client feature to use it.
 
+#[cfg(feature = "bevy")]
+mod bevy;
+
 use std::{io, time::Duration};
-use tokio::{net::{ToSocketAddrs, TcpStream}, sync::mpsc::{self, error::TryRecvError}};
+use tokio::{net::{ToSocketAddrs, TcpStream}, sync::mpsc};
 use crate::{Message, instance, event::{Origin, Event}};
+
+pub use tokio::sync::mpsc::error::TryRecvError;
 
 #[derive(Debug)]
 /// A Client with a full duplex connection to a Server. Can be .into_split()
