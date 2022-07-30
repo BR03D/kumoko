@@ -1,7 +1,7 @@
+//! Module for Client functionality. Enable the client feature to use it.
+
 use std::{io, time::Duration};
-
 use tokio::{net::{ToSocketAddrs, TcpStream}, sync::mpsc};
-
 use crate::{Message, instance, event::{Origin, Event}};
 
 #[derive(Debug)]
@@ -41,7 +41,6 @@ impl<Req: Message, Res: Message> Client<Req, Res>{
         self.receiver.get_event().await
     }
 
-    
     /// Convenience method for applications which only care about requests.
     /// 
     /// Will return `None` once the connection has ended.
@@ -52,6 +51,10 @@ impl<Req: Message, Res: Message> Client<Req, Res>{
     /// Default method for streaming to the Server.
     pub async fn send_request(&self, req: Req) {
         self.sender.send_request(req).await
+    }
+
+    pub fn try_send(&self, req: Req) {
+        self.sender.try_send(req)
     }
 
     /// Splits the Client into a Receiver and a Sender. The Sender can be 
@@ -102,6 +105,13 @@ impl<Req: Message> Sender<Req> {
         match self.sx.send(req).await {
             Ok(_) => (),
             Err(_) => unreachable!(),
+        }
+    }
+
+    pub fn try_send(&self, req: Req) {
+        match self.sx.try_send(req){
+            Ok(_) => (),
+            Err(e) => panic!("{}", e),
         }
     }
 }

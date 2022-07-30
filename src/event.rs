@@ -1,7 +1,7 @@
+//! Definitions for Connection Events
+
 use std::{sync::Arc, io};
-
 use bincode::error::DecodeError;
-
 use crate::Message;
 
 /// Describes which client an `Event` originated from. `.into()`

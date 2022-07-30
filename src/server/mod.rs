@@ -1,3 +1,5 @@
+//! Module for Server functionality. Enable the server feature to use it.
+
 use std::{io, time::Duration};
 
 use tokio::{net::{TcpListener, ToSocketAddrs}, sync::mpsc};
