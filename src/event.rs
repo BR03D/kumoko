@@ -1,7 +1,7 @@
+//! Definitions for Connection Events
+
 use std::{sync::Arc, io};
-
 use bincode::error::DecodeError;
-
 use crate::Message;
 
 /// Describes which client an `Event` originated from. `.into()`
@@ -80,16 +80,5 @@ impl From<(Vec<u8>, bincode::error::DecodeError)> for Illegal {
 impl<U: Into<usize>> From<U> for Origin{
     fn from(id: U) -> Self {
         Self::Id(id.into())
-    }
-}
-
-/// A little jank
-impl std::fmt::Display for Origin {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let st = match self {
-            Origin::Id(id) => format!("{}",id),
-            Origin::OnClient => "Server".to_string(),
-        };
-        write!(f, "{}", st)
     }
 }

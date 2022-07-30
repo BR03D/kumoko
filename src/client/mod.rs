@@ -1,8 +1,13 @@
+//! Module for Client functionality. Enable the client feature to use it.
+
+#[cfg(feature = "bevy")]
+mod bevy;
+
 use std::{io, time::Duration};
-
 use tokio::{net::{ToSocketAddrs, TcpStream}, sync::mpsc};
-
 use crate::{Message, instance, event::{Origin, Event}};
+
+pub use tokio::sync::mpsc::error::TryRecvError;
 
 #[derive(Debug)]
 /// A Client with a full duplex connection to a Server. Can be .into_split()
@@ -41,7 +46,6 @@ impl<Req: Message, Res: Message> Client<Req, Res>{
         self.receiver.get_event().await
     }
 
-    
     /// Convenience method for applications which only care about requests.
     /// 
     /// Will return `None` once the connection has ended.
@@ -49,9 +53,21 @@ impl<Req: Message, Res: Message> Client<Req, Res>{
         self.receiver.get_response().await
     }
 
+    pub fn try_get_event(&mut self) -> Result<Event<Res>, TryRecvError> {
+        self.receiver.try_get_event()
+    }
+
+    pub fn try_get_response(&mut self) -> Result<Res, TryRecvError> {
+        self.receiver.try_get_response()
+    }
+
     /// Default method for streaming to the Server.
     pub async fn send_request(&self, req: Req) {
         self.sender.send_request(req).await
+    }
+
+    pub fn try_send(&self, req: Req) {
+        self.sender.try_send(req)
     }
 
     /// Splits the Client into a Receiver and a Sender. The Sender can be 
@@ -89,6 +105,23 @@ impl<Res: Message> Receiver<Res> {
             }
         }
     }
+
+    pub fn try_get_event(&mut self) -> Result<Event<Res>, TryRecvError> {
+        match self.rx.try_recv() {
+            Ok((msg, _)) => Ok(msg),
+            Err(e) => Err(e),
+        }
+    }
+
+    pub fn try_get_response(&mut self) -> Result<Res, TryRecvError> {
+        loop{
+            match self.try_get_event(){
+                Ok(Event::Message(res)) => return Ok(res),
+                Ok(_) => continue,
+                Err(e) => return Err(e),
+            }
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -100,8 +133,15 @@ impl<Req: Message> Sender<Req> {
     /// Default method for streaming to the Server.
     pub async fn send_request(&self, req: Req) {
         match self.sx.send(req).await {
-            Ok(_) =>(), 
+            Ok(_) => (),
             Err(_) => unreachable!(),
+        }
+    }
+
+    pub fn try_send(&self, req: Req) {
+        match self.sx.try_send(req){
+            Ok(_) => (),
+            Err(e) => panic!("{}", e),
         }
     }
 }

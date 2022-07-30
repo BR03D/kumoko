@@ -47,9 +47,7 @@ impl<Res: Message> SenderPool<Res> {
                 self.map.insert(id, sx);
             },
             PoolMessage::Msg(res, target) => self.send(res, target).await,
-            
-            // this never happens i think
-            PoolMessage::Disconnect(id) => {self.map.remove(&id);},
+            PoolMessage::Disconnect(id) => { self.map.remove(&id); },
         }
     }
 

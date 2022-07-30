@@ -4,14 +4,16 @@ A simple asynchronous server/client crate built
 on tokio for easy two-way streaming.
 
 [![crates-badge]][crates-url]
+[![docs.rs](https://docs.rs/kumoko/badge.svg)][docs-url]
 ![license][mit-badge]
+
+[Website](https://www.youtube.com/watch?v=dQw4w9WgXcQ) |
+[API Docs][docs-url]
 
 [crates-badge]: https://img.shields.io/crates/v/kumoko
 [crates-url]: https://crates.io/crates/kumoko
 [mit-badge]: https://img.shields.io/crates/l/kumoko
-
-[Website](https://www.youtube.com/watch?v=dQw4w9WgXcQ) |
-[API Docs](https://docs.rs/kumoko/)
+[docs-url]: https://docs.rs/kumoko
 
 ## Unstable Warning!
 * Early in development
@@ -39,7 +41,7 @@ trait Message: Send + Encode + Decode + 'static
 In your Cargo.toml: 
 ```toml
 [dependencies]
-kumoko = { version = "0.4", features = ["full"] }
+kumoko = "0.4"
 tokio = { version = "1.20", features = ["macros", "rt-multi-thread"] }
 ```
 
@@ -66,6 +68,7 @@ use kumoko::server::Server;
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut server = Server::<String, String>::bind("[::1]:50052").await?;
+    
     loop{
         let (req, origin) = server.get_request().await;
 
