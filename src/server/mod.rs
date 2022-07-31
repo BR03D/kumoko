@@ -6,14 +6,14 @@ use tokio::{net::{TcpListener, ToSocketAddrs}, sync::mpsc};
 use crate::{Message, instance, event::{Origin, Event}};
 
 mod pool;
-use pool::{PoolMessage, SenderPool};
+use pool::{PoolMessage, EmitterPool};
 
 #[derive(Debug)]
 /// A Server with an asynchronous full-duplex connection with every 
-/// Client. Can be into_split into a Reciever and Sender for async operations.
+/// Client. Can be into_split into an Emitter and Collector for async operations.
 pub struct Server<Req: Message, Res: Message>{
-    receiver: Receiver<Req, Res>,
-    sender: Sender<Res>,
+    collector: Collector<Req, Res>,
+    emitter: Emitter<Res>,
 }
 
 impl<Req: Message, Res: Message> Server<Req, Res>{
@@ -28,42 +28,42 @@ impl<Req: Message, Res: Message> Server<Req, Res>{
     pub async fn bind_with_config<I>(ip: I, config: Config) -> io::Result<Server<Req, Res>>
         where I: ToSocketAddrs + Send + 'static,
     {
-        let (sx, rx) = mpsc::channel(config.receiver_buffer);
-        let pool = SenderPool::spawn_on_task(config.pool_buffer, config.client_buffer);
+        let (sx, rx) = mpsc::channel(config.collector_buffer);
+        let pool = EmitterPool::spawn_on_task(config.pool_buffer, config.client_buffer);
         let listener = TcpListener::bind(ip).await?;
     
         accept_loop(listener, sx, pool.clone(), config.timeout)?;
-        let receiver = Receiver{rx, pool: pool.clone()};
-        let sender = Sender{pool};
+        let collector = Collector{rx, pool: pool.clone()};
+        let emitter = Emitter{pool};
     
-        Ok(Server{receiver, sender})
+        Ok(Server{collector, emitter})
     }
 
     /// Gets the next event if one is available, otherwise it waits until it is.
     pub async fn get_event(&mut self) -> (Event<Req>, Origin) {
-        self.receiver.get_event().await
+        self.collector.get_event().await
     }
 
     /// Convenience method for applications which only care about requests.
     pub async fn get_request(&mut self) -> (Req, Origin) {
-        self.receiver.get_request().await
+        self.collector.get_request().await
     }
 
     /// Default method for streaming to Clients.
-    pub async fn send_response(&self, res: Res, target: Target) {
-        self.sender.send_response(res, target).await;
+    pub async fn emit_response(&self, res: Res, target: Target) {
+        self.emitter.emit_response(res, target).await;
     }
 
     #[cfg(feature = "broadcast")]
     /// Broadcast to every connected Client.
     pub async fn broadcast(&self, res: Res) {
-        self.send_response(res, Target::All).await;
+        self.emit_response(res, Target::All).await;
     }
 
-    /// Splits the Server into a Receiver and a Sender. The Sender can be 
+    /// Splits the Server into a Collector and a Emitter. The Emitter can be 
     /// cloned for async operations.
-    pub fn into_split(self) -> (Receiver<Req, Res>, Sender<Res>) {
-        (self.receiver, self.sender)
+    pub fn into_split(self) -> (Collector<Req, Res>, Emitter<Res>) {
+        (self.collector, self.emitter)
     }
 }
 
@@ -71,19 +71,17 @@ impl<Req: Message, Res: Message> Server<Req, Res>{
 /// 
 /// Server.into_split will create one for you.
 #[derive(Debug)]
-pub struct Receiver<Req: Message, Res: Message>{
+pub struct Collector<Req: Message, Res: Message>{
     rx: mpsc::Receiver<(Event<Req>, Origin)>,
     /// needs this to send disconnect messages to the pool
     pool: mpsc::Sender<PoolMessage<Res>>,
 }
 
-impl<Req: Message, Res: Message> Receiver<Req, Res> {
+impl<Req: Message, Res: Message> Collector<Req, Res> {
     /// Gets the next event if one is available, otherwise it waits until it is.
     pub async fn get_event(&mut self) -> (Event<Req>, Origin) {
-        // the accept loop owns a sender and it only drops once this drops.
         let (e, o) = self.rx.recv().await.expect("while this owns a sender, the pool wont drop");
         if let (Event::Disconnect(_), Origin::Id(id)) = (&e, o) {
-            // while this owns a sender, the pool cant drop
             self.pool.send(PoolMessage::Disconnect(id)).await.expect("while this owns a sender, the pool wont drop");
         }
 
@@ -105,21 +103,20 @@ impl<Req: Message, Res: Message> Receiver<Req, Res> {
 /// Server.into_split will create one for you. Implements Clone for 
 /// your own async operations.
 #[derive(Debug, Clone)]
-pub struct Sender<Res>{
+pub struct Emitter<Res>{
     pool: mpsc::Sender<PoolMessage<Res>>
 }
 
-impl<Res: Message> Sender<Res>{
+impl<Res: Message> Emitter<Res>{
     /// Default method for streaming to Clients.
-    pub async fn send_response(&self, res: Res, target: Target) {
-        // while this owns a sender, the pool cant drop
+    pub async fn emit_response(&self, res: Res, target: Target) {
         self.pool.send(PoolMessage::Msg(res, target)).await.expect("while this owns a sender, the pool wont drop");
     }
 
     /// Broadcast to every connected Client.
     #[cfg(feature = "broadcast")]
     pub async fn broadcast(&self, res: Res) {
-        self.send_response(res, Target::All).await;
+        self.emit_response(res, Target::All).await;
     }
 }
 
@@ -139,17 +136,17 @@ pub enum Target{
 pub struct Config{
     /// If no new requests appear within this duration, we drop the client.
     pub timeout: Duration,
-    /// The size of the channel buffer per Client Sender.
+    /// The size of the channel buffer per Client Emitter.
     pub client_buffer: usize,
-    /// the size of the channel buffer for the receiver.
-    pub receiver_buffer: usize,
-    /// The size of the channel buffer for the SenderPool.
+    /// the size of the channel buffer for the collector.
+    pub collector_buffer: usize,
+    /// The size of the channel buffer for the EmitterPool.
     pub pool_buffer: usize,
 }
 
 impl Default for Config{
     fn default() -> Config {
-        Config { timeout: Duration::MAX, client_buffer: 3, receiver_buffer: 32, pool_buffer: 32 }
+        Config { timeout: Duration::MAX, client_buffer: 3, collector_buffer: 32, pool_buffer: 32 }
     }
 }
 
@@ -184,7 +181,7 @@ fn accept_loop<Req: Message, Res: Message>(
             };
             let (read, write) = stream.into_split();
 
-            instance::Receiver::spawn_on_task(read, sx.clone(), id.into(), timeout);
+            instance::Collector::spawn_on_task(read, sx.clone(), id.into(), timeout);
 
             pool.send(PoolMessage::Connect(write, id)).await.expect("while this owns a sender, the pool wont drop");
 

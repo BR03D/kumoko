@@ -3,6 +3,9 @@
 pub mod event;
 pub use bincode::{Decode, Encode};
 
+#[cfg(feature = "bevy")]
+pub use client::bevy;
+
 #[cfg(feature = "server")]
 pub mod server;
 

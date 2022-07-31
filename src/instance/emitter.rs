@@ -4,20 +4,20 @@ use tokio::{net::tcp::OwnedWriteHalf, sync::mpsc};
 
 use crate::Message;
 
-pub struct Sender<Msg>{
+pub struct Emitter<Msg>{
     stream: OwnedWriteHalf,
     rx: mpsc::Receiver<Msg>,
 }
 
-impl<Msg: Message> Sender<Msg> {
+impl<Msg: Message> Emitter<Msg> {
     pub fn spawn_on_task(
         stream: OwnedWriteHalf, 
         rx: mpsc::Receiver<Msg>,
     ) {
-        Sender{stream, rx}.send_loop();
+        Emitter{stream, rx}.emit_loop();
     }
 
-    fn send_loop(mut self) {
+    fn emit_loop(mut self) {
         tokio::spawn(async move{
             loop{
                 tokio::task::yield_now().await;

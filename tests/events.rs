@@ -8,13 +8,13 @@ async fn events() {
 
     {
         let client = Client::<i64, i64>::connect(IP).await.unwrap();
-        client.send_request(i64::MAX).await;
+        client.emit_request(i64::MAX).await;
     }
     {
         let client = Client::<i32, i32>::connect(IP).await.unwrap();
-        client.send_request(11111).await;
-        client.send_request(22222).await;
-        client.send_request(33333).await;
+        client.emit_request(11111).await;
+        client.emit_request(22222).await;
+        client.emit_request(33333).await;
     }
 
     assert!(if let Connect        = server.get_event().await.0 {true} else {false});

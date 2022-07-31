@@ -7,10 +7,10 @@ async fn basic() {
     let mut server = Server::<i32, i32>::bind(IP).await.unwrap();
     let mut client = Client::connect(IP).await.unwrap();
 
-    client.send_request(15).await;
+    client.emit_request(15).await;
 
     let (req, origin) = server.get_request().await;
-    server.send_response(req + 4, origin.into()).await;
+    server.emit_response(req + 4, origin.into()).await;
 
     let res: i32 = client.get_response().await.unwrap();
     

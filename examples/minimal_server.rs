@@ -8,6 +8,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         let (req, origin) = server.get_request().await;
 
         let msg = format!("Hello {}! Happy to see you here!", req);
-        server.send_response(msg, origin.into()).await;
+        server.emit_response(msg, origin.into()).await;
     }
 }

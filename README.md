@@ -41,7 +41,7 @@ trait Message: Send + Encode + Decode + 'static
 In your Cargo.toml: 
 ```toml
 [dependencies]
-kumoko = "0.4"
+kumoko = "0.5"
 tokio = { version = "1.20", features = ["macros", "rt-multi-thread"] }
 ```
 
@@ -53,7 +53,7 @@ use kumoko::client::Client;
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut client = Client::connect("[::1]:50052").await?;
 
-    client.send_request("Ferris".to_string()).await;
+    client.emit_request("Ferris".to_string()).await;
     let msg: String = client.get_response().await.unwrap();
     println!("{}", msg);
 
@@ -73,7 +73,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         let (req, origin) = server.get_request().await;
 
         let msg = format!("Hello {}! Happy to see you here!", req);
-        server.send_response(msg, origin.into()).await;
+        server.emit_response(msg, origin.into()).await;
     }
 }
 ```

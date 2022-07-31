@@ -9,7 +9,7 @@ async fn many() {
 
     loop{
         let (req, origin): (i32, _) = server.get_request().await;
-        server.send_response(req + 1, origin.into()).await;
+        server.emit_response(req + 1, origin.into()).await;
 
         println!("sending {} to {:?}", req, origin);
 
@@ -25,7 +25,7 @@ async fn create() {
         tokio::spawn(async move{
             let mut idx = 1;
             loop{
-                client.send_request(idx).await;
+                client.emit_request(idx).await;
                 idx = client.get_response().await.unwrap();
                 tokio::task::yield_now().await;
             }

@@ -4,7 +4,7 @@ use kumoko::client::Client;
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut client = Client::connect("[::1]:50052").await?;
 
-    client.send_request("Ferris".to_string()).await;
+    client.emit_request("Ferris".to_string()).await;
     let msg: String = client.get_response().await.unwrap();
     println!("{}", msg);
 

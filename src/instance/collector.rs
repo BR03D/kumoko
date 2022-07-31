@@ -4,24 +4,24 @@ use tokio::{net::tcp::OwnedReadHalf, sync::mpsc};
 
 use crate::{Message, event::{Origin, Event, Illegal}};
 
-pub struct Receiver<Msg: Message>{
+pub struct Collector<Msg: Message>{
     stream: OwnedReadHalf,
     sx: mpsc::Sender<(Event<Msg>, Origin)>,
     id: Origin,
     timeout: Duration,
 }
 
-impl<Msg: Message> Receiver<Msg>{
+impl<Msg: Message> Collector<Msg>{
     pub fn spawn_on_task(
         stream: OwnedReadHalf, 
         sx: mpsc::Sender<(Event<Msg>, Origin)>, 
         id: Origin,
         timeout: Duration,
     ) {
-        Receiver{stream, sx, id, timeout}.receive_loop();
+        Collector{stream, sx, id, timeout}.collect_loop();
     }
 
-    fn receive_loop(self) {
+    fn collect_loop(self) {
         tokio::spawn(async move{
             loop{
                 tokio::task::yield_now().await;
@@ -31,7 +31,7 @@ impl<Msg: Message> Receiver<Msg>{
                     _ = self.sx.closed() => { return Ok::<(), ()>(()) }
                     _ = tokio::time::sleep(self.timeout) => { return Ok(())}
 
-                    data = self.receive_data() => {
+                    data = self.collect_data() => {
                         match data {
                             Ok(Err(_)) => return self.send_event(Event::clean()).await,
                             Ok(Ok(_)) => (),
@@ -50,12 +50,12 @@ impl<Msg: Message> Receiver<Msg>{
     async fn send_event(&self, event: Event<Msg>) -> Result<(), ()> {
         match self.sx.send((event, self.id)).await{
             Ok(_)  => Ok(()),
-            // Dropped the Receiver!
+            // Dropped the Collector!
             Err(_) => Err(()),
         }
     }
 
-    async fn receive_data(&self) -> io::Result<Result<(), ()>> {
+    async fn collect_data(&self) -> io::Result<Result<(), ()>> {
         self.stream.readable().await?;
         const SIZE: usize = 256;
 
@@ -64,12 +64,12 @@ impl<Msg: Message> Receiver<Msg>{
 
         match bytes_read {
             0 => return Ok(Err(())),
-            SIZE => self.receive_vec(&buf).await,
+            SIZE => self.collect_vec(&buf).await,
             n => Ok(self.decode_loop(&buf [..n]).await),
         }
     }
 
-    async fn receive_vec(&self, buf: &[u8]) -> io::Result<Result<(), ()>> {
+    async fn collect_vec(&self, buf: &[u8]) -> io::Result<Result<(), ()>> {
         let mut vec = Vec::new();
 
         if let Err(e) = self.stream.try_read(&mut vec){

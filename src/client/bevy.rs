@@ -1,7 +1,7 @@
 //! Kumoko provides a built-in bevy-plugin.
 
 use std::marker::PhantomData;
-use kumoko::{client::{Client, Receiver, Sender}, Message};
+use crate::{client::{Client, Collector, Emitter, TryRecvError}, Message};
 use bevy::prelude::*;
 
 #[derive(Debug, Deref)]
@@ -26,8 +26,8 @@ impl<Request: Msg, Response: Msg> Plugin for KumokoPlugin<Request, Response>{
             .add_event::<Request>()
             .add_event::<Response>()
             .add_startup_system(Self::init)
-            .add_system(Self::send)
-            .add_system(Self::receive)
+            .add_system(Self::emit)
+            .add_system(Self::collect)
         ;
     }
 }
@@ -48,25 +48,25 @@ impl<Request: Msg, Response: Msg> KumokoPlugin<Request, Response> {
             Client::<Request, Response>::connect(ip).await.expect("We couldnt connect to the Server! Oh no")
         })).unwrap();
 
-        let (rec, send) = client.into_split();
-        commands.insert_resource(send);
-        commands.insert_resource(rec);
+        let (col, emit ) = client.into_split();
+        commands.insert_resource(col);
+        commands.insert_resource(emit);
     }
 
-    fn send(
-        send: ResMut<Sender<Request>>,
+    fn emit(
+        emit: ResMut<Emitter<Request>>,
         mut event: EventReader<Request>,
     ) {
-        let send = send.into_inner();
+        let emit = emit.into_inner();
 
         for e in event.iter(){
             // this clones the message...for no reason. kinda cringe ngl.
-            send.try_send(e.clone());
+            emit.try_emit(e.clone());
         }
     }
 
-    fn receive(
-        mut rec: ResMut<Receiver<Response>>,
+    fn collect(
+        mut rec: ResMut<Collector<Response>>,
         mut event: EventWriter<Response>,
     ) {
         let resp = match rec.try_get_response(){
