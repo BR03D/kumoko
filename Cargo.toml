@@ -1,6 +1,6 @@
 [package]
 name = "kumoko"
-version = "0.5.0"
+version = "0.5.1"
 authors = ["BR03D"]
 edition = "2021"
 description = "A simple asynchronous server/client crate built on tokio for easy two-way streaming."
@@ -11,18 +11,18 @@ categories = ["asynchronous", "concurrency", "network-programming"]
 include = ["/src", "/examples", "/tests", "README.md"]
 
 [features]
-default = ["client", "server", "broadcast", "bevy"]
+default = ["client", "server", "broadcast"]
 broadcast = ["server"]
 client = []
 server = []
-bevy = ["dep:bevy","client"]
+bevy = ["dep:bevy", "client"]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
 bincode = "2.0.0-rc.1"
 tokio = { version = "1.20", features = ["macros", "net", "rt-multi-thread", "sync", "time"] }
-bevy = { version = "0.7", optional = true }
+bevy = { version = "0.8", optional = true, default-features = false }
 
 [[example]]
 name="minimal_server"
