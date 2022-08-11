@@ -1,11 +1,11 @@
 [package]
 name = "kumoko"
-version = "0.5.1"
+version = "0.5.2"
 authors = ["BR03D"]
 edition = "2021"
 description = "A simple asynchronous server/client crate built on tokio for easy two-way streaming."
 repository = "https://github.com/BR03D/kumoko.git"
-license = "MIT"
+license = "MIT OR Apache-2.0"
 keywords = ["async", "server", "bevy", "full-duplex", "rpc"]
 categories = ["asynchronous", "concurrency", "network-programming"]
 include = ["/src", "/examples", "/tests", "README.md"]
@@ -23,6 +23,7 @@ bevy = ["dep:bevy", "client"]
 bincode = "2.0.0-rc.1"
 tokio = { version = "1.20", features = ["macros", "net", "rt-multi-thread", "sync", "time"] }
 bevy = { version = "0.8", optional = true, default-features = false }
+async-recursion = "1.0.0"
 
 [[example]]
 name="minimal_server"

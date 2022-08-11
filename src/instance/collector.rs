@@ -64,12 +64,30 @@ impl<Msg: Message> Collector<Msg>{
 
         match bytes_read {
             0 => return Ok(Err(())),
-            SIZE => self.collect_vec(&buf).await,
+            SIZE => self.collect_recursive(&buf).await,
             n => Ok(self.decode_loop(&buf [..n]).await),
         }
     }
 
-    async fn collect_vec(&self, buf: &[u8]) -> io::Result<Result<(), ()>> {
+    #[async_recursion::async_recursion]
+    async fn collect_recursive(&self, buf: &[u8]) -> io::Result<Result<(), ()>> {
+        const SIZE: usize = 1024;
+        let mut bufbuf = [0; SIZE];
+
+        match self.stream.try_read(&mut bufbuf){
+            Ok(0) => Ok(Err(())),
+            Ok(SIZE) => self.collect_recursive(&[buf, &bufbuf].concat()).await,
+            Ok(n) => Ok(self.decode_loop(&[buf, &bufbuf[..n]].concat()).await),
+            Err(e) => {
+                if e.kind() == io::ErrorKind::WouldBlock{
+                    Ok(self.decode_loop(&buf).await)
+                }
+                else {Err(e)}
+            },
+        }
+    }
+
+    /*async fn collect_vec(&self, buf: &[u8]) -> io::Result<Result<(), ()>> {
         let mut vec = Vec::new();
 
         if let Err(e) = self.stream.try_read(&mut vec){
@@ -81,7 +99,7 @@ impl<Msg: Message> Collector<Msg>{
         };
         vec = [&buf [..], &vec].concat();
         Ok(self.decode_loop(&vec).await)
-    }
+    }*/
 
     async fn decode_loop(&self, data: &[u8]) -> Result<(), ()> {
         let mut slice = &data[..];
