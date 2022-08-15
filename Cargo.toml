@@ -1,6 +1,6 @@
 [package]
 name = "kumoko"
-version = "0.5.2"
+version = "0.5.3"
 authors = ["BR03D"]
 edition = "2021"
 description = "A simple asynchronous server/client crate built on tokio for easy two-way streaming."
@@ -21,9 +21,9 @@ bevy = ["dep:bevy", "client"]
 
 [dependencies]
 bincode = "2.0.0-rc.1"
-tokio = { version = "1.20", features = ["macros", "net", "rt-multi-thread", "sync", "time"] }
+tokio = { version = "1.20", features = ["macros", "net", "rt-multi-thread", "sync", "time", "io-util"] }
 bevy = { version = "0.8", optional = true, default-features = false }
-async-recursion = "1.0.0"
+bytes = "1.2.1"
 
 [[example]]
 name="minimal_server"
@@ -36,6 +36,10 @@ required-features = ["client"]
 [[example]]
 name="bevy"
 required-features = ["bevy"]
+
+[[example]]
+name="basic"
+required-features = ["server", "client"]
 
 [[test]]
 name="basic"

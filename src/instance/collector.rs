@@ -1,14 +1,18 @@
 use std::{io::{self, ErrorKind}, time::Duration};
 
+use bincode::{config::Configuration, error::DecodeError};
 use tokio::{net::tcp::OwnedReadHalf, sync::mpsc};
-
 use crate::{Message, event::{Origin, Event, Illegal}};
+
+use super::ring_buffer::RingBuffer;
 
 pub struct Collector<Msg: Message>{
     stream: OwnedReadHalf,
     sx: mpsc::Sender<(Event<Msg>, Origin)>,
     id: Origin,
     timeout: Duration,
+    buffer: RingBuffer,
+    config: Configuration,
 }
 
 impl<Msg: Message> Collector<Msg>{
@@ -18,27 +22,29 @@ impl<Msg: Message> Collector<Msg>{
         id: Origin,
         timeout: Duration,
     ) {
-        Collector{stream, sx, id, timeout}.collect_loop();
+        let config = bincode::config::standard();
+        Collector{stream, sx, id, timeout, buffer:RingBuffer::new(), config}.collect_loop();
     }
 
-    fn collect_loop(self) {
+    fn collect_loop(mut self) {
         tokio::spawn(async move{
             loop{
                 tokio::task::yield_now().await;
-
+                let sx_clone = self.sx.clone();
+                
                 tokio::select! {
                     biased;
-                    _ = self.sx.closed() => { return Ok::<(), ()>(()) }
-                    _ = tokio::time::sleep(self.timeout) => { return Ok(())}
+                    _ = sx_clone.closed() => { return }
+                    _ = tokio::time::sleep(self.timeout) => { return }
 
                     data = self.collect_data() => {
                         match data {
-                            Ok(Err(_)) => return self.send_event(Event::clean()).await,
-                            Ok(Ok(_)) => (),
+                            Ok(Status::Finish) => return self.send_event(Event::clean()).await,
+                            Ok(Status::Continue) => (),
                             Err(err) => match err.kind() {
                                 ErrorKind::WouldBlock => (),
                                 ErrorKind::ConnectionReset => return self.send_event(Event::dirty()).await,
-                                _ => self.send_event(Event::from_err(err)).await?,
+                                _ => self.send_event(Event::from_err(err)).await,
                             },
                         }
                     }
@@ -47,76 +53,50 @@ impl<Msg: Message> Collector<Msg>{
         });
     }
 
-    async fn send_event(&self, event: Event<Msg>) -> Result<(), ()> {
-        match self.sx.send((event, self.id)).await{
-            Ok(_)  => Ok(()),
-            // Dropped the Collector!
-            Err(_) => Err(()),
-        }
+    async fn send_event(&mut self, event: Event<Msg>) {
+        // we check for server dropping above :)
+        self.sx.send((event, self.id)).await.ok();
     }
 
-    async fn collect_data(&self) -> io::Result<Result<(), ()>> {
+    async fn collect_data(&mut self) -> io::Result<Status> {
         self.stream.readable().await?;
-        const SIZE: usize = 256;
 
-        let mut buf = [0; SIZE];
-        let bytes_read = self.stream.try_read(&mut buf)?;
-
+        let bytes_read = self.stream.try_read_buf(&mut self.buffer)?;
+        
         match bytes_read {
-            0 => return Ok(Err(())),
-            SIZE => self.collect_recursive(&buf).await,
-            n => Ok(self.decode_loop(&buf [..n]).await),
-        }
-    }
-
-    #[async_recursion::async_recursion]
-    async fn collect_recursive(&self, buf: &[u8]) -> io::Result<Result<(), ()>> {
-        const SIZE: usize = 1024;
-        let mut bufbuf = [0; SIZE];
-
-        match self.stream.try_read(&mut bufbuf){
-            Ok(0) => Ok(Err(())),
-            Ok(SIZE) => self.collect_recursive(&[buf, &bufbuf].concat()).await,
-            Ok(n) => Ok(self.decode_loop(&[buf, &bufbuf[..n]].concat()).await),
-            Err(e) => {
-                if e.kind() == io::ErrorKind::WouldBlock{
-                    Ok(self.decode_loop(&buf).await)
-                }
-                else {Err(e)}
+            0 => Ok(Status::Finish),
+            _ => {
+                self.decode_loop().await;
+                Ok(Status::Continue)
             },
         }
     }
 
-    /*async fn collect_vec(&self, buf: &[u8]) -> io::Result<Result<(), ()>> {
-        let mut vec = Vec::new();
-
-        if let Err(e) = self.stream.try_read(&mut vec){
-            // if exactly 256 bytes are sent, this will happen:
-            if e.kind() == io::ErrorKind::WouldBlock {
-                return Ok(self.decode_loop(&buf).await)
-            }
-            else { return Err(e) }
-        };
-        vec = [&buf [..], &vec].concat();
-        Ok(self.decode_loop(&vec).await)
-    }*/
-
-    async fn decode_loop(&self, data: &[u8]) -> Result<(), ()> {
-        let mut slice = &data[..];
-        let config = bincode::config::standard();
-
-        while slice.len() > 0{
-            let res = bincode::decode_from_std_read::<Msg,_,_>(&mut slice, config);
-
-            match res{
-                Ok(msg) => self.send_event(msg.into()).await?,
+    async fn decode_loop(&mut self) {
+        loop {
+            match bincode::decode_from_reader::<Msg,_,_>(&mut self.buffer, self.config){
+                Ok(msg) => {
+                    self.buffer.fwd();
+                    self.send_event(msg.into()).await;
+                },
                 Err(err) => {
-                    self.send_event(Illegal{vec: Vec::from(slice), err: err.into()}.into()).await?;
-                    return Ok(())
+                    match err{
+                        DecodeError::UnexpectedEnd => {
+                            self.buffer.back();
+                            return
+                        }
+                        _ => {
+                            self.buffer.clear();
+                            self.send_event(Illegal{vec: Vec::new(), err: err.into()}.into()).await;
+                        }
+                    }
                 },
             };
-        };
-
-        return Ok(())
+        }
     }
+}
+
+enum Status {
+    Finish,
+    Continue,
 }
