@@ -11,7 +11,7 @@ categories = ["asynchronous", "concurrency", "network-programming"]
 include = ["/src", "/examples", "/tests", "README.md"]
 
 [features]
-default = ["client", "server", "broadcast", "bevy"]
+default = ["client", "server", "broadcast"]
 broadcast = ["server"]
 client = []
 server = []
