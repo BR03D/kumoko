@@ -55,7 +55,9 @@ unsafe impl bytes::buf::BufMut for RingBuffer {
 
 impl bincode::de::read::Reader for RingBuffer{
     fn read(&mut self, bytes: &mut [u8]) -> Result<(), bincode::error::DecodeError> {
-        if (self.stop.wrapping_sub(self.start) as usize) < bytes.len() {return Err(DecodeError::UnexpectedEnd)}
+        if (self.stop.wrapping_sub(self.start) as usize) < bytes.len() {
+            return Err(DecodeError::UnexpectedEnd{additional: bytes.len() - (self.stop.wrapping_sub(self.start) as usize) })
+        }
         for i in bytes{
             *i = unsafe {self.data[self.start as usize].assume_init()};
             self.start = self.start.wrapping_add(1);

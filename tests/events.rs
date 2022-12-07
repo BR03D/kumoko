@@ -20,8 +20,8 @@ async fn events() {
     assert!(if let Connect        = server.get_event().await.0 {true} else {false});
     assert!(if let Connect        = server.get_event().await.0 {true} else {false});
     assert!(if let IllegalData(_) = server.get_event().await.0 {true} else {false});
-    assert!(if let Disconnect(_)  = server.get_event().await.0 {true} else {false});
     assert!(if let Message(11111) = server.get_event().await.0 {true} else {false});
+    assert!(if let Disconnect(_)  = server.get_event().await.0 {true} else {false});
     assert!(if let Message(22222) = server.get_event().await.0 {true} else {false});
     assert!(if let Message(33333) = server.get_event().await.0 {true} else {false});
     assert!(if let Disconnect(_)  = server.get_event().await.0 {true} else {false});

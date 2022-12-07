@@ -81,7 +81,7 @@ impl<Msg: Message> Collector<Msg>{
                 },
                 Err(err) => {
                     match err{
-                        DecodeError::UnexpectedEnd => {
+                        DecodeError::UnexpectedEnd{..} => {
                             self.buffer.back();
                             return
                         }

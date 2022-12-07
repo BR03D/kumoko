@@ -4,11 +4,16 @@ use std::marker::PhantomData;
 use crate::{client::{Client, Collector, Emitter, TryRecvError}, Message};
 use bevy::prelude::*;
 
-#[derive(Debug, Deref)]
+#[derive(Debug, Deref, Resource)]
 pub struct ServerIpAddr(pub &'static str);
-
 pub trait Msg: Message + Sync + Clone{}
 impl<T> Msg for T where T: Message + Sync + Clone{}
+
+impl<Request: Msg>  Resource for Emitter<Request>{}
+impl<Response: Msg> Resource for Collector<Response>{}
+impl Resource for Runtime{}
+
+pub struct Runtime(tokio::runtime::Runtime);
 
 pub struct KumokoPlugin<Request: Msg, Response: Msg>{
     req: PhantomData<Request>,
@@ -18,10 +23,10 @@ pub struct KumokoPlugin<Request: Msg, Response: Msg>{
 impl<Request: Msg, Response: Msg> Plugin for KumokoPlugin<Request, Response>{
     fn build(&self, app: &mut App) {
         app
-            .insert_resource(tokio::runtime::Builder::new_multi_thread()
-                .enable_all()
-                .build()
-                .unwrap()
+            .insert_resource(
+                Runtime(
+                    tokio::runtime::Builder::new_multi_thread().enable_all().build().unwrap()
+                )
             )
             .add_event::<Request>()
             .add_event::<Response>()
@@ -38,10 +43,12 @@ impl<Request: Msg, Response: Msg> KumokoPlugin<Request, Response> {
     }
 
     fn init(
-        runtime: Res<tokio::runtime::Runtime>,
+        runtime: Res<Runtime>,
         mut commands: Commands,
-        ip: Res<ServerIpAddr>
+        ip: Res<ServerIpAddr>,
+        //mut event: EventWriter<'static, 'static, Response>,
     ) {
+        let runtime = &runtime.0;
         let ip = **ip;
         // this blocks the main thread for now
         let client = runtime.block_on(runtime.spawn(async move{
@@ -49,7 +56,11 @@ impl<Request: Msg, Response: Msg> KumokoPlugin<Request, Response> {
         })).unwrap();
 
         let (col, emit ) = client.into_split();
-        commands.insert_resource(col);
+
+        /*tokio::spawn(async move{
+            event.send(col.get_response().await.unwrap());
+        });
+        */commands.insert_resource(col);
         commands.insert_resource(emit);
     }
 
