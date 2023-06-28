@@ -1,8 +1,5 @@
 //! Module for Client functionality. Enable the client feature to use it.
 
-#[cfg(feature = "bevy")]
-pub mod bevy;
-
 use std::{io, time::Duration};
 use tokio::{net::{ToSocketAddrs, TcpStream}, sync::mpsc};
 use crate::{Message, instance, event::{Origin, Event}};
@@ -46,7 +43,7 @@ impl<Req: Message, Res: Message> Client<Req, Res>{
         self.collector.get_event().await
     }
 
-    /// Convenience method for applications which only care about requests.
+    /// Convenience method for applications which only care about responses.
     /// 
     /// Will return `None` once the connection has ended.
     pub async fn get_response(&mut self) -> Option<Res> {
@@ -70,7 +67,7 @@ impl<Req: Message, Res: Message> Client<Req, Res>{
         self.emitter.try_emit(req)
     }
 
-    /// Splits the Client into a Collector and a Emitter. The Emitter can be 
+    /// Splits the Client into Collector and Emitter. The Emitter can be 
     /// cloned for async operations.
     pub fn into_split(self) -> (Collector<Res>, Emitter<Req>) {
         (self.collector, self.emitter)
@@ -93,7 +90,7 @@ impl<Res: Message> Collector<Res> {
         }
     }
 
-    /// Convenience method for applications which only care about requests.
+    /// Convenience method for applications which only care about responses.
     /// 
     /// Will return `None` once the connection has ended.
     pub async fn get_response(&mut self) -> Option<Res> {

@@ -1,12 +1,12 @@
 [package]
 name = "kumoko"
-version = "0.5.6"
+version = "0.6.0"
 authors = ["BR03D"]
 edition = "2021"
 description = "A simple asynchronous server/client crate built on tokio for easy two-way streaming."
 repository = "https://github.com/BR03D/kumoko.git"
 license = "MIT OR Apache-2.0"
-keywords = ["async", "server", "bevy", "full-duplex", "rpc"]
+keywords = ["async", "server", "full-duplex", "rpc"]
 categories = ["asynchronous", "concurrency", "network-programming"]
 include = ["/src", "/examples", "/tests", "README.md"]
 
@@ -15,14 +15,12 @@ default = ["client", "server", "broadcast"]
 broadcast = ["server"]
 client = []
 server = []
-bevy = ["dep:bevy", "client"]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-bincode = "2.0.0-rc.1"
+bincode = "2.0.0-rc.3"
 tokio = { version = "1.20", features = ["macros", "net", "rt-multi-thread", "sync", "time", "io-util"] }
-bevy = { version = "0.9", optional = true, default-features = false }
 bytes = "1.2.1"
 
 [[example]]
@@ -32,10 +30,6 @@ required-features = ["server"]
 [[example]]
 name="minimal_client"
 required-features = ["client"]
-
-[[example]]
-name="bevy"
-required-features = ["bevy"]
 
 [[example]]
 name="basic"
